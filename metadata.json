@@ -1,0 +1,8 @@
+{
+  "name": "CT Remesas - Gestión Logística",
+  "description": "Aplicación móvil para la gestión de remesas en campo: creación, seguimiento, evidencias y firmas.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
