@@ -5,8 +5,7 @@ const config: CapacitorConfig = {
   appName: 'CT Remesas',
   webDir: 'dist',
   server: {
-    androidScheme: 'https',
-    cleartext: true
+    androidScheme: 'http'
   }
 };
 

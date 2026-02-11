@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppStatus, UserSession, Shipment, ShipmentStatus } from './types';
 import { authService } from './services/authService';
-import { MOCK_SHIPMENTS, COLORS } from './constants';
+import { MOCK_SHIPMENTS, COLORS, API_CONFIG } from './constants';
 import ShipmentCard from './components/ShipmentCard';
 import Wizard from './components/Wizard';
 import DetailView from './components/DetailView';
