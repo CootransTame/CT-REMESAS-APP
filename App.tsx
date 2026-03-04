@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppStatus, UserSession, Shipment, ShipmentStatus } from './types';
 import { authService } from './services/authService';
-import { MOCK_SHIPMENTS, COLORS, API_CONFIG } from './constants';
+import { fetchRemesas, remesaToShipment, PaginatedResponse } from './services/shipmentService';
+import { COLORS, API_CONFIG } from './constants';
 import ShipmentCard from './components/ShipmentCard';
 import Wizard from './components/Wizard';
 import DetailView from './components/DetailView';
@@ -18,7 +19,17 @@ type SortOption = 'recent' | 'alphabetical';
 const App: React.FC = () => {
   const [session, setSession] = useState<UserSession | null>(authService.getSession());
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
-  const [shipments, setShipments] = useState<Shipment[]>(MOCK_SHIPMENTS);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [loadingShipments, setLoadingShipments] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [shipmentsError, setShipmentsError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  // Filtros opcionales
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
+  const [filterEstado, setFilterEstado] = useState('');
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -36,6 +47,59 @@ const App: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+
+  /** Carga página 1 (reset) de remesas. Se llama al login y al aplicar filtros. */
+  const loadShipments = useCallback(async (
+    sess: UserSession,
+    opts?: { busqueda?: string; fechaInicio?: string; fechaFin?: string; estado?: string }
+  ) => {
+    setLoadingShipments(true);
+    setShipmentsError(null);
+    try {
+      const res = await fetchRemesas({
+        session: sess,
+        pagina: 1,
+        porPagina: 10,
+        busqueda: opts?.busqueda || undefined,
+        fechaInicio: opts?.fechaInicio || undefined,
+        fechaFin: opts?.fechaFin || undefined,
+        estado: opts?.estado || undefined,
+      });
+      setShipments(res.data.map(remesaToShipment));
+      setCurrentPage(res.pagina);
+      setTotalPages(res.totalPaginas);
+      setTotalCount(res.total);
+    } catch (err: any) {
+      setShipmentsError(err.message ?? 'Error al cargar remesas');
+    } finally {
+      setLoadingShipments(false);
+    }
+  }, []);
+
+  /** Carga la siguiente página y la agrega a la lista existente. */
+  const loadMore = useCallback(async () => {
+    if (!session || loadingMore || currentPage >= totalPages) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = currentPage + 1;
+      const res = await fetchRemesas({
+        session,
+        pagina: nextPage,
+        porPagina: 10,
+        busqueda: searchTerm || undefined,
+        fechaInicio: fechaInicio || undefined,
+        fechaFin: fechaFin || undefined,
+        estado: filterEstado || undefined,
+      });
+      setShipments(prev => [...prev, ...res.data.map(remesaToShipment)]);
+      setCurrentPage(res.pagina);
+      setTotalPages(res.totalPaginas);
+    } catch (err: any) {
+      console.error('Error al cargar más remesas:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [session, loadingMore, currentPage, totalPages, searchTerm, fechaInicio, fechaFin, filterEstado]);
 
   const handleLogout = useCallback(() => {
     authService.logout();
@@ -72,6 +136,14 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [session, handleLogout]);
 
+  // Cargar las 10 remesas más recientes al autenticar
+  useEffect(() => {
+    if (session) {
+      loadShipments(session);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) return;
@@ -100,11 +172,6 @@ const App: React.FC = () => {
   };
 
   const filteredShipments = [...shipments]
-    .filter(s => 
-      s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.sender.firstName.toLowerCase().includes(searchTerm.toLowerCase())
-    )
     .sort((a, b) => {
       if (sortBy === 'recent') {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -267,9 +334,19 @@ const App: React.FC = () => {
           <div className="relative flex-1">
             <input 
               type="text" 
-              placeholder="Buscar guía o cliente..."
+              placeholder="Buscar # guía y presionar Enter..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && session) {
+                  loadShipments(session, {
+                    busqueda: searchTerm || undefined,
+                    fechaInicio: fechaInicio || undefined,
+                    fechaFin: fechaFin || undefined,
+                    estado: filterEstado || undefined,
+                  });
+                }
+              }}
               className="w-full bg-white/10 border border-white/20 text-white placeholder:text-blue-200 p-4 pl-12 rounded-2xl outline-none focus:bg-white/20 transition-all"
             />
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-200" size={20} />
@@ -292,28 +369,65 @@ const App: React.FC = () => {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Desde</label>
-                <input type="date" className="w-full p-3 border rounded-xl text-xs bg-gray-50" />
+                <input
+                  type="date"
+                  value={fechaInicio}
+                  onChange={(e) => setFechaInicio(e.target.value)}
+                  className="w-full p-3 border rounded-xl text-xs bg-gray-50"
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Hasta</label>
-                <input type="date" className="w-full p-3 border rounded-xl text-xs bg-gray-50" />
+                <input
+                  type="date"
+                  value={fechaFin}
+                  onChange={(e) => setFechaFin(e.target.value)}
+                  className="w-full p-3 border rounded-xl text-xs bg-gray-50"
+                />
               </div>
             </div>
-            <select className="w-full p-3 border rounded-xl text-sm bg-gray-50 pr-12">
-              <option>Todos los Estados</option>
+            <select
+              value={filterEstado}
+              onChange={(e) => setFilterEstado(e.target.value)}
+              className="w-full p-3 border rounded-xl text-sm bg-gray-50 pr-12"
+            >
+              <option value="">Todos los Estados</option>
               {Object.values(ShipmentStatus).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
             </select>
             <button 
-              onClick={() => setShowFilters(false)}
+              onClick={() => {
+                if (session) {
+                  loadShipments(session, {
+                    busqueda: searchTerm || undefined,
+                    fechaInicio: fechaInicio || undefined,
+                    fechaFin: fechaFin || undefined,
+                    estado: filterEstado || undefined,
+                  });
+                }
+                setShowFilters(false);
+              }}
               className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-md active:scale-95 transition-transform"
             >
               Aplicar Filtros
+            </button>
+            <button 
+              onClick={() => {
+                setFechaInicio('');
+                setFechaFin('');
+                setFilterEstado('');
+                setSearchTerm('');
+                if (session) loadShipments(session);
+                setShowFilters(false);
+              }}
+              className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-bold active:scale-95 transition-transform"
+            >
+              Limpiar Filtros
             </button>
           </div>
         )}
 
         <div className="flex justify-between items-center mb-2">
-          <h2 className="font-extrabold text-gray-400 uppercase text-[10px] tracking-widest">Listado de Remesas ({filteredShipments.length})</h2>
+          <h2 className="font-extrabold text-gray-400 uppercase text-[10px] tracking-widest">Listado de Remesas ({totalCount})</h2>
           
           <div className="relative" ref={sortMenuRef}>
             <button 
@@ -345,21 +459,59 @@ const App: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-4">
-          {filteredShipments.map(shipment => (
-            <ShipmentCard 
-              key={shipment.id} 
-              shipment={shipment} 
-              onClick={() => setSelectedShipment(shipment)}
-            />
-          ))}
-          {filteredShipments.length === 0 && (
-            <div className="text-center py-20">
-              <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Package className="text-gray-300" size={40} />
-              </div>
-              <p className="text-gray-500 font-bold">No se encontraron remesas</p>
-              <p className="text-xs text-gray-400">Pruebe ajustando sus criterios de búsqueda</p>
+          {loadingShipments ? (
+            <div className="flex flex-col items-center py-20 gap-4">
+              <Loader2 size={40} className="text-blue-400 animate-spin" />
+              <p className="text-gray-400 font-bold text-sm">Cargando remesas...</p>
             </div>
+          ) : shipmentsError ? (
+            <div className="flex flex-col items-center py-16 gap-3 bg-red-50 rounded-2xl px-6">
+              <AlertTriangle size={36} className="text-red-400" />
+              <p className="text-red-600 font-bold text-sm text-center">{shipmentsError}</p>
+              <button
+                onClick={() => session && loadShipments(session)}
+                className="mt-2 px-6 py-2 bg-red-500 text-white rounded-xl text-xs font-bold active:scale-95 transition-transform"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : (
+            <>
+              {filteredShipments.map(shipment => (
+                <ShipmentCard 
+                  key={shipment.id} 
+                  shipment={shipment} 
+                  onClick={() => setSelectedShipment(shipment)}
+                />
+              ))}
+              {filteredShipments.length === 0 && (
+                <div className="text-center py-20">
+                  <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Package className="text-gray-300" size={40} />
+                  </div>
+                  <p className="text-gray-500 font-bold">No se encontraron remesas</p>
+                  <p className="text-xs text-gray-400">Pruebe ajustando sus criterios de búsqueda</p>
+                </div>
+              )}
+              {currentPage < totalPages && (
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="w-full py-4 bg-white border border-blue-100 text-blue-600 rounded-2xl font-bold shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Cargando...
+                    </>
+                  ) : (
+                    <>
+                      Cargar más ({shipments.length} de {totalCount})
+                    </>
+                  )}
+                </button>
+              )}
+            </>
           )}
         </div>
       </main>
@@ -417,7 +569,9 @@ const App: React.FC = () => {
           shipment={selectedShipment}
           onClose={() => setSelectedShipment(null)}
           onStatusChange={(newStatus) => {
-            setShipments(prev => prev.map(s => s.id === selectedShipment.id ? { ...s, status: newStatus } : s));
+            setShipments(prev => prev.map(s =>
+      s.id === selectedShipment.id ? { ...s, status: newStatus } : s
+    ));
           }}
         />
       )}

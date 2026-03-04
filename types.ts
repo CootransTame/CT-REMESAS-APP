@@ -104,3 +104,22 @@ export interface TimelineEvent {
   dianStatus: string;
   office: string;
 }
+
+/** Remesa tal como la devuelve el endpoint /api/empleado/guias/listado */
+export interface RemesaListada {
+  Remesa: number;
+  NumeroDocumento: number;
+  Fecha: string;
+  DocumentoCliente?: string;
+  Unidades: number;
+  Peso: number;
+  TotalFlete: number;
+  ValorComercial: number;
+  OficinaCodigo: number;
+  NombreRemitente: string;
+  NombreDestinatario: string;
+  CiudadRemitente: string;
+  CiudadDestinatario: string;
+  EstadoActual: string | null;
+  FechaEstado: string | null;
+}

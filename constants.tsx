@@ -8,8 +8,10 @@ import { ShipmentStatus, PaymentMethod } from './types';
 export const API_CONFIG = {
   BASE_URL: (import.meta.env.VITE_API_BASE_URL as string) || '/api',
   ENDPOINTS: {
-    LOGIN: '/auth/login',
-    ME:    '/auth/me',
+    LOGIN:                 '/auth/login',
+    ME:                    '/auth/me',
+    GUIAS_LISTADO_EMPLEADO: '/empleado/guias/listado',
+    GUIAS_LISTADO_CLIENTE:  '/clientes/guias/listado',
   }
 };
 
