@@ -1,23 +1,28 @@
 
-import React, { useState } from 'react';
-import { Shipment, ShipmentStatus } from '../types';
+import React, { useState, useEffect } from 'react';
+import { RemesaDetalle, EstadoRemesa, ShipmentStatus, UserSession } from '../types';
 import { 
   X, Printer, Clock, Image, AlertCircle, CheckCircle2, 
-  Trash2, QrCode, FileText, Camera, Upload, ShieldCheck, 
-  CreditCard, User, Info, MapPin, Phone, Mail, Fingerprint
+  Trash2, QrCode, Camera, Upload, ShieldCheck, 
+  CreditCard, User, Info, MapPin, Phone, Mail, Fingerprint,
+  Package, Loader2, Truck
 } from 'lucide-react';
 import { FAIL_REASONS } from '../constants';
+import { fetchDetalleRemesa } from '../services/shipmentService';
 import SignaturePad from './SignaturePad';
 import ReportView from './ReportView';
 import LabelView from './LabelView';
 
 interface DetailViewProps {
-  shipment: Shipment;
+  /** Numero de documento de la remesa a mostrar */
+  numeroDocumento: number;
+  /** Sesión del usuario autenticado */
+  session: UserSession;
   onClose: () => void;
   onStatusChange: (status: ShipmentStatus) => void;
 }
 
-const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChange }) => {
+const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClose, onStatusChange }) => {
   const [activeTab, setActiveTab] = useState<'info' | 'actions' | 'tracking'>('info');
   const [showSignature, setShowSignature] = useState(false);
   const [showAnularModal, setShowAnularModal] = useState(false);
@@ -26,21 +31,82 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
   const [showReport, setShowReport] = useState(false);
   const [showLabel, setShowLabel] = useState(false);
 
+  const [detalle, setDetalle] = useState<RemesaDetalle | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    fetchDetalleRemesa(session, numeroDocumento)
+      .then((data) => {
+        if (!cancelled) setDetalle(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message || 'Error al cargar detalle');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [session, numeroDocumento]);
+
   const canAnular = () => {
-    const diff = Date.now() - new Date(shipment.createdAt).getTime();
+    if (!detalle) return false;
+    const diff = Date.now() - new Date(detalle.Fecha).getTime();
     return diff <= 20 * 60 * 1000;
   };
 
-  const isDespachada = shipment.status === ShipmentStatus.DESPACHADA;
+  const estadoActual = detalle?.Estados?.length
+    ? detalle.Estados[detalle.Estados.length - 1].Estado
+    : null;
 
-  const handlePrintReport = () => {
-    setShowReport(true);
-  };
+  const isDespachada = estadoActual?.toUpperCase().includes('DESPACHADA') ||
+    estadoActual?.toUpperCase().includes('REPARTO') || false;
 
-  const handlePrintLabel = () => {
-    setShowLabel(true);
-  };
+  /* ─── Loading ─── */
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-gray-50 z-40 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+          <p className="text-sm font-bold text-gray-500">Cargando detalle…</p>
+        </div>
+      </div>
+    );
+  }
 
+  /* ─── Error ─── */
+  if (error || !detalle) {
+    return (
+      <div className="fixed inset-0 bg-gray-50 z-40 flex flex-col">
+        <div className="bg-white p-4 flex items-center justify-between border-b">
+          <button onClick={onClose} className="p-2"><X size={24} /></button>
+          <h2 className="font-bold text-lg text-blue-900">{numeroDocumento}</h2>
+          <div className="w-8" />
+        </div>
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center max-w-sm">
+            <AlertCircle className="mx-auto text-red-500 mb-3" size={32} />
+            <p className="font-bold text-red-700 mb-1">Error al cargar</p>
+            <p className="text-sm text-red-500">{error || 'Remesa no encontrada'}</p>
+            <button onClick={onClose} className="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl text-sm font-bold">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ─── Helpers ─── */
+  const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString('es-CO');
+  const fmtMoney = (n: number | null | undefined) => `$${fmt(n)}`;
+
+  /* ═══════════════════════════ TAB: INFORMACIÓN ═══════════════════════════ */
   const renderInfo = () => (
     <div className="space-y-4 pb-10">
       {/* Sección Legal y Servicio */}
@@ -53,36 +119,73 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
             <p className="text-xs font-bold text-gray-700">Lic. Min. Transporte N.º 00307 del 30/10/2002</p>
           </div>
         </div>
-        
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Tipo de Servicio</p>
-            <p className="text-sm font-bold text-blue-900">{shipment.product.toUpperCase()}</p>
+            <p className="text-sm font-bold text-blue-900">PAQUETERÍA</p>
             <p className="text-[10px] text-gray-400 italic">Mercancía convencional</p>
           </div>
           <div>
-            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">N.º Factura</p>
-            <p className="text-sm font-bold text-gray-900">{shipment.payrollNumber || 'FACT-772910'}</p>
+            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">N.º Documento</p>
+            <p className="text-sm font-bold text-gray-900">{detalle.NumeroDocumento}</p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 pt-3 border-t border-gray-50">
           <div>
             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Estado Actual</p>
-            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${shipment.status === ShipmentStatus.CUMPLIDA ? 'bg-green-50 text-green-700 border-green-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
-              {shipment.status}
-            </span>
+            {estadoActual ? (
+              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${
+                estadoActual.toUpperCase().includes('ENTREGADA') || estadoActual.toUpperCase().includes('CUMPLIDA')
+                  ? 'bg-green-50 text-green-700 border-green-100'
+                  : 'bg-blue-50 text-blue-700 border-blue-100'
+              }`}>
+                {estadoActual}
+              </span>
+            ) : (
+              <span className="text-xs text-gray-400">—</span>
+            )}
           </div>
           <div>
-            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Estado DIAN</p>
-            <p className={`text-xs font-black uppercase ${shipment.dianStatus === 'emitido' ? 'text-green-600' : 'text-red-500'}`}>
-              {shipment.dianStatus}
+            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Fecha</p>
+            <p className="text-xs font-bold text-gray-700">
+              {new Date(detalle.Fecha).toLocaleDateString('es-CO')}
             </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 pt-3 border-t border-gray-50">
+          <div>
+            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Oficina Origen</p>
+            <p className="text-xs font-bold text-gray-700">{detalle.OficinaOrigen}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Ruta</p>
+            <p className="text-xs font-bold text-gray-700">{detalle.CiudadRemitente} → {detalle.CiudadDestinatario}</p>
           </div>
         </div>
       </div>
 
-      {/* Datos del Remitente Completo */}
+      {/* Peso, Unidades, Peso Volumétrico */}
+      <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
+        <div className="flex items-center gap-2 mb-4">
+          <Package size={16} className="text-blue-600" />
+          <h3 className="text-xs font-black text-blue-900 uppercase tracking-widest">Carga</h3>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-blue-50 p-3 rounded-2xl text-center">
+            <p className="text-[10px] text-blue-500 font-black uppercase">Unidades</p>
+            <p className="text-xl font-black text-blue-900">{detalle.Unidades}</p>
+          </div>
+          <div className="bg-blue-50 p-3 rounded-2xl text-center">
+            <p className="text-[10px] text-blue-500 font-black uppercase">Peso (Kg)</p>
+            <p className="text-xl font-black text-blue-900">{detalle.Peso}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Datos del Remitente */}
       <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4">
         <h3 className="text-xs font-black text-blue-900 uppercase tracking-widest flex items-center gap-2">
           <User size={14} /> Datos del Remitente
@@ -90,32 +193,36 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
         <div className="grid grid-cols-1 gap-3">
           <div className="flex gap-4">
             <div className="flex-1">
-              <p className="text-[10px] text-gray-400 font-bold uppercase">Nombre Completo</p>
-              <p className="text-sm font-bold">{shipment.sender.firstName} {shipment.sender.lastName}</p>
+              <p className="text-[10px] text-gray-400 font-bold uppercase">Nombre / Razón Social</p>
+              <p className="text-sm font-bold">{detalle.NombreRemitente}</p>
             </div>
             <div className="w-1/3">
               <p className="text-[10px] text-gray-400 font-bold uppercase">Identificación</p>
-              <p className="text-xs font-medium text-gray-600">{shipment.sender.idType} {shipment.sender.idNumber}</p>
+              <p className="text-xs font-medium text-gray-600">{detalle.DocRemitente}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-3 rounded-2xl">
-            <MapPin size={14} className="text-blue-500" />
-            <span className="font-medium">{shipment.sender.address}, {shipment.sender.city}</span>
+            <MapPin size={14} className="text-blue-500 shrink-0" />
+            <span className="font-medium">
+              {detalle.DireccionRemitente}
+              {detalle.BarrioRemitente ? `, ${detalle.BarrioRemitente}` : ''}
+              {' - '}{detalle.CiudadRemitente}
+            </span>
           </div>
           <div className="flex gap-2">
             <div className="flex-1 flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-3 rounded-2xl">
-              <Phone size={14} className="text-green-500" />
-              <span className="font-medium">{shipment.sender.phone}</span>
+              <Phone size={14} className="text-green-500 shrink-0" />
+              <span className="font-medium">{detalle.TelefonoRemitente || detalle.CelularRemitente || '—'}</span>
             </div>
             <div className="flex-1 flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-3 rounded-2xl">
-              <Mail size={14} className="text-orange-500" />
-              <span className="font-medium truncate">{shipment.sender.email}</span>
+              <Mail size={14} className="text-orange-500 shrink-0" />
+              <span className="font-medium truncate">{detalle.EmailRemitente || '—'}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Datos del Destinatario Completo */}
+      {/* Datos del Destinatario */}
       <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4">
         <h3 className="text-xs font-black text-blue-900 uppercase tracking-widest flex items-center gap-2">
           <Fingerprint size={14} /> Datos del Destinatario
@@ -123,26 +230,30 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
         <div className="grid grid-cols-1 gap-3">
           <div className="flex gap-4">
             <div className="flex-1">
-              <p className="text-[10px] text-gray-400 font-bold uppercase">Nombre Completo</p>
-              <p className="text-sm font-bold">{shipment.receiver.firstName} {shipment.receiver.lastName}</p>
+              <p className="text-[10px] text-gray-400 font-bold uppercase">Nombre / Razón Social</p>
+              <p className="text-sm font-bold">{detalle.NombreDestinatario}</p>
             </div>
             <div className="w-1/3">
               <p className="text-[10px] text-gray-400 font-bold uppercase">Identificación</p>
-              <p className="text-xs font-medium text-gray-600">{shipment.receiver.idType} {shipment.receiver.idNumber}</p>
+              <p className="text-xs font-medium text-gray-600">{detalle.DocDestinatario}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-3 rounded-2xl">
-            <MapPin size={14} className="text-blue-500" />
-            <span className="font-medium">{shipment.receiver.address}, {shipment.receiver.city}</span>
+            <MapPin size={14} className="text-blue-500 shrink-0" />
+            <span className="font-medium">
+              {detalle.DireccionDestinatario}
+              {detalle.BarrioDestinatario ? `, ${detalle.BarrioDestinatario}` : ''}
+              {' - '}{detalle.CiudadDestinatario}
+            </span>
           </div>
           <div className="flex gap-2">
             <div className="flex-1 flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-3 rounded-2xl">
-              <Phone size={14} className="text-green-500" />
-              <span className="font-medium">{shipment.receiver.phone}</span>
+              <Phone size={14} className="text-green-500 shrink-0" />
+              <span className="font-medium">{detalle.TelefonoDestinatario || detalle.CelularDestinatario || '—'}</span>
             </div>
             <div className="flex-1 flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-3 rounded-2xl">
-              <Mail size={14} className="text-orange-500" />
-              <span className="font-medium truncate">{shipment.receiver.email}</span>
+              <Mail size={14} className="text-orange-500 shrink-0" />
+              <span className="font-medium truncate">{detalle.EmailDestinatario || '—'}</span>
             </div>
           </div>
         </div>
@@ -154,22 +265,34 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
           <CreditCard size={18} className="text-blue-600" />
           <h3 className="text-sm font-black text-blue-900 uppercase tracking-widest">Resumen de Cobro</h3>
         </div>
-        
+
         <div className="space-y-3">
           <div className="flex justify-between items-center text-sm">
-            <span className="text-gray-500 font-medium">Flete de Transporte</span>
-            <span className="font-bold text-gray-900">${shipment.values.freight.toLocaleString()}</span>
+            <span className="text-gray-500 font-medium">Flete Pactado</span>
+            <span className="font-bold text-gray-900">{fmtMoney(detalle.Flete)}</span>
           </div>
           <div className="flex justify-between items-center text-sm">
-            <span className="text-gray-500 font-medium">Valor del Seguro</span>
-            <span className="font-bold text-gray-900">${shipment.values.insurance.toLocaleString()}</span>
+            <span className="text-gray-500 font-medium">Seguro</span>
+            <span className="font-bold text-gray-900">{fmtMoney(detalle.Seguro)}</span>
           </div>
+          {detalle.Comision > 0 && (
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-500 font-medium">Comisión</span>
+              <span className="font-bold text-gray-900">{fmtMoney(detalle.Comision)}</span>
+            </div>
+          )}
+          {detalle.Reexpedicion > 0 && (
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-500 font-medium">Reexpedición</span>
+              <span className="font-bold text-gray-900">{fmtMoney(detalle.Reexpedicion)}</span>
+            </div>
+          )}
           <div className="flex justify-between items-center pt-3 border-t border-blue-100">
             <div>
-              <span className="text-[10px] text-blue-500 font-black uppercase tracking-widest block">Valor del Producto (Total)</span>
-              <span className="text-xs text-gray-400 font-medium italic">Sumatoria Seguro + Flete</span>
+              <span className="text-[10px] text-blue-500 font-black uppercase tracking-widest block">Total Flete</span>
+              <span className="text-xs text-gray-400 font-medium italic">Flete + Seguro + Comisión + Reexpedición</span>
             </div>
-            <span className="font-black text-2xl text-blue-900">${shipment.values.total.toLocaleString()}</span>
+            <span className="font-black text-2xl text-blue-900">{fmtMoney(detalle.TotalFlete)}</span>
           </div>
         </div>
 
@@ -179,48 +302,49 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
               <CreditCard size={20} />
             </div>
             <div>
-              <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Método de Pago</p>
-              <p className="text-sm font-bold text-gray-800">{shipment.paymentMethod}</p>
+              <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Forma de Pago</p>
+              <p className="text-sm font-bold text-gray-800">{detalle.FormaPago || '—'}</p>
             </div>
           </div>
           <div className="text-right">
             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Valor Comercial</p>
-            <p className="text-sm font-bold text-blue-600">${shipment.commercialValue.toLocaleString()}</p>
+            <p className="text-sm font-bold text-blue-600">{fmtMoney(detalle.ValorComercial)}</p>
           </div>
         </div>
       </div>
 
-      {/* Campo de Observaciones */}
+      {/* Observaciones */}
       <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
         <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-3">
-          <Info size={14} /> Observaciones / Descripción
+          <Info size={14} /> Observaciones
         </h3>
         <div className="bg-gray-50 p-4 rounded-2xl text-sm text-gray-600 leading-relaxed font-medium">
-          {shipment.description || 'Sin observaciones adicionales para esta remesa.'}
+          {detalle.Observaciones || 'Sin observaciones adicionales para esta remesa.'}
         </div>
       </div>
     </div>
   );
 
+  /* ═══════════════════════════ TAB: OPERACIONES ═══════════════════════════ */
   const renderActions = () => (
     <div className="grid grid-cols-2 gap-3 pb-6">
-      <button 
-        onClick={handlePrintReport}
+      <button
+        onClick={() => setShowReport(true)}
         className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border hover:bg-gray-50 active:bg-blue-50 transition-colors"
       >
         <Printer className="text-blue-600 mb-2" size={28} />
         <span className="text-xs font-bold text-gray-700">Reporte</span>
       </button>
 
-      <button 
-        onClick={handlePrintLabel}
+      <button
+        onClick={() => setShowLabel(true)}
         className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border hover:bg-gray-50 active:bg-blue-50 transition-colors"
       >
         <QrCode className="text-blue-600 mb-2" size={28} />
         <span className="text-xs font-bold text-gray-700">Rótulo</span>
       </button>
 
-      <button 
+      <button
         onClick={() => setShowEvidenceModal(true)}
         className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border hover:bg-gray-50 active:bg-blue-50 transition-colors"
       >
@@ -228,7 +352,7 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
         <span className="text-xs font-bold text-gray-700">Evidencias</span>
       </button>
 
-      <button 
+      <button
         disabled={!isDespachada}
         onClick={() => setShowSignature(true)}
         className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-colors ${
@@ -239,7 +363,7 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
         <span className="text-xs font-bold text-gray-700">Cumplido</span>
       </button>
 
-      <button 
+      <button
         disabled={!isDespachada}
         onClick={() => setShowFailedModal(true)}
         className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-colors ${
@@ -250,7 +374,7 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
         <span className="text-xs font-bold text-gray-700">Intento Fallido</span>
       </button>
 
-      <button 
+      <button
         disabled={!canAnular()}
         onClick={() => setShowAnularModal(true)}
         className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-colors ${
@@ -263,28 +387,113 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
     </div>
   );
 
+  /* ═══════════════════════════ TAB: ESTADOS / TRACKING ═══════════════════════════ */
+  const renderTracking = () => {
+    const estados = detalle.Estados ?? [];
+
+    if (estados.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+          <Truck size={48} className="mb-3" />
+          <p className="font-bold">Sin estados registrados</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4 pb-20">
+        {/* Timeline visual */}
+        <div className="relative pl-8 space-y-6 before:content-[''] before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-blue-100">
+          {estados.map((e: EstadoRemesa, i: number) => {
+            const isLast = i === estados.length - 1;
+            const isEntregada = e.Estado?.toUpperCase().includes('ENTREGADA') || e.Estado?.toUpperCase().includes('CUMPLIDA');
+            const dotColor = isLast
+              ? (isEntregada ? 'bg-green-500' : 'bg-blue-600')
+              : 'bg-blue-300';
+
+            return (
+              <div key={i} className="relative">
+                <div className={`absolute -left-[26px] top-1 w-4 h-4 ${dotColor} rounded-full border-4 border-white shadow-sm`} />
+                <p className="text-xs text-gray-400 font-bold">
+                  {new Date(e.FechaRegistro).toLocaleString('es-CO')}
+                </p>
+                <p className="font-bold text-gray-700">{e.Estado}</p>
+                <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+                  {e.Oficina && <p>📍 Oficina: <span className="font-medium">{e.Oficina}</span></p>}
+                  {e.Planilla && <p>📋 Planilla: <span className="font-medium">{e.Planilla}</span></p>}
+                  {e.Placa && <p>🚚 Placa: <span className="font-medium">{e.Placa}</span></p>}
+                  {e.Conductor && <p>👤 Conductor: <span className="font-medium">{e.Conductor}</span></p>}
+                  {e.Usuario && <p>🖥️ Usuario: <span className="font-medium">{e.Usuario}</span></p>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+
+      </div>
+    );
+  };
+
+  /* ─── Shipment-like object for ReportView/LabelView compatibility ─── */
+  const shipmentCompat = {
+    id: String(detalle.NumeroDocumento),
+    createdAt: detalle.Fecha,
+    client: detalle.NombreDestinatario,
+    route: `${detalle.CiudadRemitente} - ${detalle.CiudadDestinatario}`,
+    sender: {
+      firstName: detalle.NombreRemitente, lastName: '',
+      city: detalle.CiudadRemitente, address: detalle.DireccionRemitente,
+      phone: detalle.TelefonoRemitente || '', email: detalle.EmailRemitente || '',
+      idType: '', idNumber: detalle.DocRemitente, postalCode: '',
+      municipality: '', department: '', neighborhood: detalle.BarrioRemitente,
+    },
+    receiver: {
+      firstName: detalle.NombreDestinatario, lastName: '',
+      city: detalle.CiudadDestinatario, address: detalle.DireccionDestinatario,
+      phone: detalle.TelefonoDestinatario || '', email: detalle.EmailDestinatario || '',
+      idType: '', idNumber: detalle.DocDestinatario, postalCode: '',
+      municipality: '', department: '', neighborhood: detalle.BarrioDestinatario,
+    },
+    currentOffice: detalle.OficinaOrigen,
+    originOffice: detalle.OficinaOrigen,
+    status: ShipmentStatus.OFICINA_ORIGEN,
+    dianStatus: 'no emitido' as const,
+    values: { freight: detalle.Flete, insurance: detalle.Seguro, total: detalle.TotalFlete },
+    paymentMethod: detalle.FormaPago as any,
+    product: 'Paquetería',
+    units: detalle.Unidades,
+    weight: detalle.Peso,
+    dimensions: { length: 0, height: 0, width: 0 },
+    commercialValue: detalle.ValorComercial,
+    description: detalle.Observaciones || '',
+    evidences: [] as string[],
+  };
+
+  /* ═══════════════════════════ RENDER ═══════════════════════════ */
   return (
+    <>
     <div className="fixed inset-0 bg-gray-50 z-40 flex flex-col no-print">
       <div className="bg-white p-4 flex items-center justify-between border-b sticky top-0 z-20">
         <button onClick={onClose} className="p-2"><X size={24} /></button>
-        <h2 className="font-bold text-lg text-blue-900">{shipment.id}</h2>
+        <h2 className="font-bold text-lg text-blue-900">{detalle.NumeroDocumento}</h2>
         <div className="w-8" />
       </div>
 
       <div className="flex bg-white border-b sticky top-[60px] z-10">
-        <button 
+        <button
           onClick={() => setActiveTab('info')}
           className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'info' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400'}`}
         >
           Información
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('actions')}
           className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'actions' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400'}`}
         >
           Operaciones
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('tracking')}
           className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'tracking' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400'}`}
         >
@@ -295,31 +504,14 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
       <div className="flex-1 overflow-y-auto p-4">
         {activeTab === 'info' && renderInfo()}
         {activeTab === 'actions' && renderActions()}
-        {activeTab === 'tracking' && (
-          <div className="space-y-4 pb-20">
-            <div className="relative pl-8 space-y-8 before:content-[''] before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-blue-100">
-              <div className="relative">
-                <div className="absolute -left-[26px] top-1 w-4 h-4 bg-green-500 rounded-full border-4 border-white shadow-sm" />
-                <p className="text-xs text-gray-400 font-bold">{new Date().toLocaleString()}</p>
-                <p className="font-bold text-gray-700">Estado: {shipment.status.toUpperCase()}</p>
-                <p className="text-sm text-gray-500">Oficina: {shipment.currentOffice}</p>
-              </div>
-              <div className="relative">
-                <div className="absolute -left-[26px] top-1 w-4 h-4 bg-blue-400 rounded-full border-4 border-white shadow-sm" />
-                <p className="text-xs text-gray-400 font-bold">{new Date(shipment.createdAt).toLocaleString()}</p>
-                <p className="font-bold text-gray-700">CREACIÓN DE GUÍA</p>
-                <p className="text-sm text-gray-500">Origen: {shipment.originOffice}</p>
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === 'tracking' && renderTracking()}
       </div>
 
       {/* Signature Modal */}
       {showSignature && (
-        <SignaturePad 
+        <SignaturePad
           title="Firma de Cumplimiento"
-          onSave={(data) => {
+          onSave={() => {
             onStatusChange(ShipmentStatus.CUMPLIDA);
             setShowSignature(false);
             onClose();
@@ -339,19 +531,19 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
               <h3 className="text-xl font-black text-gray-900">Anular Remesa</h3>
               <p className="text-sm text-gray-500 font-medium text-center mt-2">¿Estás seguro? Esta acción no se puede deshacer.</p>
             </div>
-            
-            <textarea 
-              className="w-full p-4 border border-gray-100 rounded-2xl mb-6 h-32 focus:ring-2 focus:ring-red-100 outline-none bg-gray-50 text-sm font-medium" 
-              placeholder="Escribe el motivo de la anulación aquí..." 
+
+            <textarea
+              className="w-full p-4 border border-gray-100 rounded-2xl mb-6 h-32 focus:ring-2 focus:ring-red-100 outline-none bg-gray-50 text-sm font-medium"
+              placeholder="Escribe el motivo de la anulación aquí..."
             />
-            
+
             <div className="flex flex-col gap-3">
-              <button 
+              <button
                 onClick={() => {
                   alert('Remesa anulada exitosamente');
                   setShowAnularModal(false);
                   onClose();
-                }} 
+                }}
                 className="w-full py-4 bg-red-600 text-white rounded-2xl font-black shadow-lg shadow-red-100 active:scale-95 transition-all text-lg"
               >
                 Confirmar Anulación
@@ -372,8 +564,8 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
             <p className="text-sm text-gray-500 font-bold uppercase tracking-widest mb-4">Seleccione la causal:</p>
             <div className="space-y-3 mb-8">
               {FAIL_REASONS.map((reason, i) => (
-                <button 
-                  key={i} 
+                <button
+                  key={i}
                   onClick={() => {
                     onStatusChange(ShipmentStatus.INTENTO_FALLIDO);
                     setShowFailedModal(false);
@@ -403,7 +595,7 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
               <X size={24}/>
             </button>
           </div>
-          
+
           <div className="flex-1 grid grid-cols-2 gap-4 auto-rows-min overflow-y-auto pr-1">
             <label className="flex flex-col items-center justify-center p-8 bg-blue-50 rounded-[32px] border-2 border-dashed border-blue-200 cursor-pointer active:scale-95 transition-transform text-center group">
               <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-blue-100 group-hover:scale-110 transition-transform">
@@ -419,15 +611,6 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
               <span className="text-xs font-black text-gray-700 uppercase tracking-widest">Galería</span>
               <input type="file" accept="image/*" className="hidden" />
             </label>
-
-            {shipment.evidences.map((ev, i) => (
-              <div key={i} className="aspect-square bg-white p-2 rounded-[32px] shadow-md border border-gray-50 relative group">
-                <img src={ev} alt="Evidencia" className="w-full h-full object-cover rounded-[24px]" />
-                <button className="absolute top-4 right-4 bg-white shadow-xl p-2 rounded-xl text-red-500 active:scale-90 transition-all opacity-0 group-hover:opacity-100">
-                  <Trash2 size={16}/>
-                </button>
-              </div>
-            ))}
           </div>
 
           <button onClick={() => setShowEvidenceModal(false)} className="w-full py-5 bg-blue-600 text-white rounded-[24px] font-black text-lg shadow-xl shadow-blue-100 mt-6 active:scale-95 transition-all">
@@ -436,22 +619,23 @@ const DetailView: React.FC<DetailViewProps> = ({ shipment, onClose, onStatusChan
         </div>
       )}
 
-      {/* Report View Modal */}
-      {showReport && (
-        <ReportView 
-          shipment={shipment} 
-          onClose={() => setShowReport(false)} 
-        />
-      )}
-
-      {/* Label View Modal */}
-      {showLabel && (
-        <LabelView 
-          shipment={shipment} 
-          onClose={() => setShowLabel(false)} 
-        />
-      )}
     </div>
+
+    {/* Fuera del no-print para que sean visibles al imprimir */}
+    {showReport && (
+      <ReportView
+        detalle={detalle}
+        onClose={() => setShowReport(false)}
+      />
+    )}
+
+    {showLabel && (
+      <LabelView
+        shipment={shipmentCompat as any}
+        onClose={() => setShowLabel(false)}
+      />
+    )}
+    </>
   );
 };
 

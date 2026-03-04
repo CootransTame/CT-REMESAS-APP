@@ -31,7 +31,7 @@ const App: React.FC = () => {
   const [fechaFin, setFechaFin] = useState('');
   const [filterEstado, setFilterEstado] = useState('');
   const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
+  const [selectedNumeroDoc, setSelectedNumeroDoc] = useState<number | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -109,7 +109,7 @@ const App: React.FC = () => {
     setError('');
     setStatus(AppStatus.IDLE);
     setIsWizardOpen(false);
-    setSelectedShipment(null);
+    setSelectedNumeroDoc(null);
     setShowLogoutConfirm(false);
     setShowProfileDropdown(false);
   }, []);
@@ -274,6 +274,7 @@ const App: React.FC = () => {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50 flex flex-col no-print pb-24">
       <header className="bg-blue-800 text-white p-4 pt-6 sticky top-0 z-30 shadow-lg">
         <div className="flex justify-between items-center mb-6">
@@ -481,7 +482,7 @@ const App: React.FC = () => {
                 <ShipmentCard 
                   key={shipment.id} 
                   shipment={shipment} 
-                  onClick={() => setSelectedShipment(shipment)}
+                  onClick={() => setSelectedNumeroDoc(Number(shipment.id))}
                 />
               ))}
               {filteredShipments.length === 0 && (
@@ -564,18 +565,6 @@ const App: React.FC = () => {
         />
       )}
 
-      {selectedShipment && (
-        <DetailView 
-          shipment={selectedShipment}
-          onClose={() => setSelectedShipment(null)}
-          onStatusChange={(newStatus) => {
-            setShipments(prev => prev.map(s =>
-      s.id === selectedShipment.id ? { ...s, status: newStatus } : s
-    ));
-          }}
-        />
-      )}
-
       {isProfileOpen && (
         <ProfileView 
           session={session}
@@ -583,6 +572,20 @@ const App: React.FC = () => {
         />
       )}
     </div>
+
+    {selectedNumeroDoc && session && (
+      <DetailView 
+        numeroDocumento={selectedNumeroDoc}
+        session={session}
+        onClose={() => setSelectedNumeroDoc(null)}
+        onStatusChange={(newStatus) => {
+          setShipments(prev => prev.map(s =>
+      s.id === String(selectedNumeroDoc) ? { ...s, status: newStatus } : s
+    ));
+        }}
+      />
+    )}
+    </>
   );
 };
 

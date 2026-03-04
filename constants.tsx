@@ -11,6 +11,7 @@ export const API_CONFIG = {
     LOGIN:                 '/auth/login',
     ME:                    '/auth/me',
     GUIAS_LISTADO_EMPLEADO: '/empleado/guias/listado',
+    GUIAS_DETALLE_EMPLEADO: '/empleado/guias/detalle',
     GUIAS_LISTADO_CLIENTE:  '/clientes/guias/listado',
   }
 };

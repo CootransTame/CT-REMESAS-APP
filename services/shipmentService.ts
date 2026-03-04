@@ -1,4 +1,4 @@
-import { RemesaListada, Shipment, ShipmentStatus, PaymentMethod, UserSession } from '../types';
+import { RemesaListada, RemesaDetalle, Shipment, ShipmentStatus, PaymentMethod, UserSession } from '../types';
 import { API_CONFIG } from '../constants';
 
 /** Convierte un string de estado del backend al enum ShipmentStatus */
@@ -20,7 +20,7 @@ export function remesaToShipment(r: RemesaListada): Shipment {
   const receiverLast = rparts.slice(1).join(' ') ?? '';
 
   return {
-    id: `CT-${r.Remesa}`,
+    id: String(r.NumeroDocumento),
     createdAt: r.Fecha,
     client: r.NombreDestinatario,
     route: `${r.CiudadRemitente} - ${r.CiudadDestinatario}`,
@@ -120,4 +120,34 @@ export async function fetchRemesas(params: FetchShipmentsParams): Promise<Pagina
     porPagina: json.porPagina ?? porPagina,
     totalPaginas: json.totalPaginas ?? 0,
   };
+}
+
+/**
+ * Obtiene el detalle completo de una remesa por su número de documento.
+ * Incluye: remitente/destinatario, financiero, peso, unidades y estados/tracking.
+ */
+export async function fetchDetalleRemesa(session: UserSession, numeroDocumento: number): Promise<RemesaDetalle> {
+  const url = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.GUIAS_DETALLE_EMPLEADO}`;
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.token}`,
+    },
+    body: JSON.stringify({ numeroDocumento }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err?.message ?? `Error ${resp.status} al consultar detalle de remesa`);
+  }
+
+  const json = await resp.json();
+
+  if (!json.success || !json.data) {
+    throw new Error(json.message ?? 'Respuesta inesperada del servidor');
+  }
+
+  return json.data as RemesaDetalle;
 }

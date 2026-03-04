@@ -105,6 +105,61 @@ export interface TimelineEvent {
   office: string;
 }
 
+/** Estado individual del historial de tracking de una remesa */
+export interface EstadoRemesa {
+  Estado: string;
+  FechaRegistro: string;
+  Oficina: string | null;
+  Planilla: number | null;
+  Placa: string | null;
+  Conductor: string | null;
+  Usuario: string | null;
+}
+
+/** Detalle completo de una remesa devuelto por el endpoint /api/empleado/guias/detalle */
+export interface RemesaDetalle {
+  Remesa: number;
+  NumeroDocumento: number;
+  Fecha: string;
+  DocumentoCliente: string;
+  Unidades: number;
+  Peso: number;
+  PesoVolumetrico: number;
+  Flete: number;
+  Seguro: number;
+  TotalFlete: number;
+  ValorComercial: number;
+  Comision: number;
+  Reexpedicion: number;
+  Observaciones: string;
+  OficinaCodigo: number;
+  OficinaOrigen: string;
+  FormaPago: string;
+
+  // Remitente
+  NombreRemitente: string;
+  DocRemitente: string;
+  DireccionRemitente: string;
+  TelefonoRemitente: string;
+  BarrioRemitente: string;
+  CelularRemitente: string | null;
+  EmailRemitente: string | null;
+  CiudadRemitente: string;
+
+  // Destinatario
+  NombreDestinatario: string;
+  DocDestinatario: string;
+  DireccionDestinatario: string;
+  TelefonoDestinatario: string;
+  BarrioDestinatario: string;
+  CelularDestinatario: string | null;
+  EmailDestinatario: string | null;
+  CiudadDestinatario: string;
+
+  // Estados
+  Estados: EstadoRemesa[];
+}
+
 /** Remesa tal como la devuelve el endpoint /api/empleado/guias/listado */
 export interface RemesaListada {
   Remesa: number;
