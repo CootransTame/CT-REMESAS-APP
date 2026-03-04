@@ -6,10 +6,29 @@ export enum AppStatus {
   SUCCESS = 'success'
 }
 
+/** Datos del usuario autenticado tal como los devuelve el nuevo backend (ApiClientes) */
+export interface UserData {
+  id: number;
+  username: string;
+  name: string;
+  description: string;
+  CATA_APLI_Codigo: number;
+  /** > 0 si el usuario es cliente; 0 si es empleado/admin */
+  TERC_Codigo_Cliente: number;
+  TERC_Codigo_Empleado: number;
+  TERC_Codigo_Conductor: number;
+  TERC_Codigo_Proveedor: number;
+  TERC_Codigo_Transportador: number;
+  /** null = usar tarifario base (1000007) */
+  Tarifario: number | null;
+  OFIC_Codigo: number;
+}
+
 export interface UserSession {
   token: string;
   expiresAt: number; // timestamp in ms
   username: string;
+  user: UserData;
 }
 
 export enum PaymentMethod {

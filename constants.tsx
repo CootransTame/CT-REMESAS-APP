@@ -3,11 +3,13 @@ import React from 'react';
 import { ShipmentStatus, PaymentMethod } from './types';
 
 // Configuración del API
+// Desarrollo : https://api-clientes-dev.cootranstame.net  (proxy Vite en /api)
+// Producción : https://api-clientes-prod.cootranstame.net (VITE_API_BASE_URL en .env.production)
 export const API_CONFIG = {
-  BASE_URL: 'https://remesas-api-dev.cootranstame.net',
+  BASE_URL: (import.meta.env.VITE_API_BASE_URL as string) || '/api',
   ENDPOINTS: {
     LOGIN: '/auth/login',
-    PROFILE: '/auth/profile'
+    ME:    '/auth/me',
   }
 };
 
