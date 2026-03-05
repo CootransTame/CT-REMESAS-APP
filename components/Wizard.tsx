@@ -11,6 +11,7 @@ import {
   fetchCiudades, fetchCiudadesTarifario, fetchFormasPago, fetchProductos, buscarTercero,
   fetchTarifas, crearTercero, crearRemesa, CrearRemesaResponse
 } from '../services/wizardService';
+import { subirFirmaRemitente } from '../services/evidenciaService';
 
 interface WizardProps {
   session: UserSession;
@@ -44,6 +45,18 @@ const emptyPerson = (): PersonData => ({
   razonSocial: '', direccion: '', barrio: '', telefono: '', celular: '', email: '',
   ciudadCodigo: null, ciudadNombre: '', ciudadDane: '', esCliente: false, encontrado: false,
 });
+
+const InputField = ({ label, value, onChange, placeholder, type = 'text', disabled = false, numeric = false }: {
+  label: string; value: string | number; onChange: (v: string) => void; placeholder?: string;
+  type?: string; disabled?: boolean; numeric?: boolean;
+}) => (
+  <div className="space-y-1">
+    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">{label}</label>
+    <input type={type} placeholder={placeholder} disabled={disabled}
+      className={`w-full p-4 border rounded-2xl outline-none focus:ring-2 focus:ring-blue-100 font-medium transition-colors ${disabled ? 'bg-gray-50 text-gray-500' : 'bg-white'}`}
+      value={value || ''} onChange={e => { const val = numeric ? e.target.value.replace(/[^0-9]/g, '') : e.target.value; onChange(val); }} />
+  </div>
+);
 
 const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
   const [step, setStep] = useState(1);
@@ -337,6 +350,12 @@ const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
         documentoCliente: remitente.identificacion,
         observaciones: observaciones || undefined,
       });
+      // Subir firma del remitente si fue capturada
+      if (firma && res.data.numeroRemesa) {
+        try {
+          await subirFirmaRemitente(session, res.data.numeroRemesa, firma);
+        } catch (_) { /* no bloquear si falla la firma */ }
+      }
       setResultData(res);
       setSubmitted(true);
     } catch (err: any) {
@@ -416,17 +435,7 @@ const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
     </div>
   );
 
-  const InputField = ({ label, value, onChange, placeholder, type = 'text', disabled = false, numeric = false }: {
-    label: string; value: string | number; onChange: (v: string) => void; placeholder?: string;
-    type?: string; disabled?: boolean; numeric?: boolean;
-  }) => (
-    <div className="space-y-1">
-      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">{label}</label>
-      <input type={type} placeholder={placeholder} disabled={disabled}
-        className={`w-full p-4 border rounded-2xl outline-none focus:ring-2 focus:ring-blue-100 font-medium transition-colors ${disabled ? 'bg-gray-50 text-gray-500' : 'bg-white'}`}
-        value={value || ''} onChange={e => { const val = numeric ? e.target.value.replace(/[^0-9]/g, '') : e.target.value; onChange(val); }} />
-    </div>
-  );
+
 
   if (catalogLoading) {
     return (
@@ -471,15 +480,15 @@ const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
             <div className="grid grid-cols-3 gap-4 mt-4">
               <div>
                 <p className="text-[9px] font-black text-gray-400 uppercase">Flete</p>
-                <p className="text-sm font-bold text-gray-800">${resultData.data.Flete?.toLocaleString()}</p>
+                <p className="text-sm font-bold text-gray-800">${resultData.data.Flete?.toLocaleString('es-CO')}</p>
               </div>
               <div>
                 <p className="text-[9px] font-black text-gray-400 uppercase">Seguro</p>
-                <p className="text-sm font-bold text-gray-800">${resultData.data.Seguro?.toLocaleString()}</p>
+                <p className="text-sm font-bold text-gray-800">${resultData.data.Seguro?.toLocaleString('es-CO')}</p>
               </div>
               <div>
                 <p className="text-[9px] font-black text-gray-400 uppercase">Total</p>
-                <p className="text-sm font-bold text-green-600">${resultData.data.Valor_Total?.toLocaleString()}</p>
+                <p className="text-sm font-bold text-green-600">${resultData.data.Valor_Total?.toLocaleString('es-CO')}</p>
               </div>
             </div>
           </div>
@@ -730,7 +739,7 @@ const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-xl text-blue-900">$</span>
                     {tarifaInfo ? (
                       <div className="w-full p-5 pl-10 border-2 border-blue-50 rounded-[24px] text-2xl font-black text-blue-900 bg-blue-50/30">
-                        {fletePactado.toLocaleString()}
+                        {fletePactado.toLocaleString('es-CO')}
                       </div>
                     ) : (
                       <input type="number" value={fletePactado} onChange={e => handleFleteChange(Number(e.target.value))}
@@ -740,17 +749,17 @@ const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
                   {!tarifaInfo && invalidFlete && (
                     <div className="flex items-center gap-1.5 mt-1 ml-1 text-red-600">
                       <AlertCircle size={14} />
-                      <p className="text-[10px] font-black uppercase tracking-tight">El flete no puede ser menor a ${Math.round(minAllowed).toLocaleString()} (Max 20% desc.)</p>
+                      <p className="text-[10px] font-black uppercase tracking-tight">El flete no puede ser menor a ${Math.round(minAllowed).toLocaleString('es-CO')} (Max 20% desc.)</p>
                     </div>
                   )}
                 </div>
                 <div className="bg-white p-5 rounded-[24px] border border-gray-100 flex justify-between items-center">
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Valor Seguro</p>
-                  <p className="text-xl font-black text-gray-700">${valorSeguro.toLocaleString()}</p>
+                  <p className="text-xl font-black text-gray-700">${valorSeguro.toLocaleString('es-CO')}</p>
                 </div>
                 <div className="bg-blue-50 p-6 rounded-[32px] border border-blue-100 text-center">
                   <p className="text-[10px] text-blue-500 font-black uppercase tracking-widest mb-1">Total a Cobrar</p>
-                  <p className="text-5xl font-black text-blue-900 tracking-tighter">${total.toLocaleString()}</p>
+                  <p className="text-5xl font-black text-blue-900 tracking-tighter">${total.toLocaleString('es-CO')}</p>
                 </div>
               </div>
             )}
@@ -807,7 +816,7 @@ const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
               <AccordionSection id="mercancia" title="Detalles de Mercancia" icon={Box}>
                 <SummaryItem label="Producto" value={productos.find(p => p.Codigo === productoCodigo)?.Nombre ?? ''} />
                 <SummaryItem label="Peso / Unid" value={`${peso} Kg / ${unidades} Un`} />
-                <SummaryItem label="V. Comercial" value={`$${valorComercial.toLocaleString()}`} />
+                <SummaryItem label="V. Comercial" value={`$${valorComercial.toLocaleString('es-CO')}`} />
                 <SummaryItem label="Forma de Pago" value={tarifaInfo?.formasPago.find(f => f.Codigo === formaPagoCodigo)?.Nombre ?? formasPago.find(f => f.Codigo === formaPagoCodigo)?.forma_pago ?? ''} />
                 {descripcion && <SummaryItem label="Descripcion" value={descripcion} fullWidth />}
                 {observaciones && <SummaryItem label="Observaciones" value={observaciones} fullWidth />}
@@ -816,11 +825,11 @@ const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
             <div className="bg-blue-900 p-6 rounded-[32px] text-white shadow-xl shadow-blue-200 mt-4 border border-blue-800 flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Total a Pagar</p>
-                <p className="text-3xl font-black tracking-tighter">${total.toLocaleString()}</p>
+                <p className="text-3xl font-black tracking-tighter">${total.toLocaleString('es-CO')}</p>
               </div>
               <div className="text-right text-[10px] font-bold opacity-60 uppercase tracking-widest space-y-1">
-                <p>Flete: ${fletePactado.toLocaleString()}</p>
-                <p>Seguro: ${valorSeguro.toLocaleString()}</p>
+                <p>Flete: ${fletePactado.toLocaleString('es-CO')}</p>
+                <p>Seguro: ${valorSeguro.toLocaleString('es-CO')}</p>
               </div>
             </div>
             {submitError && (

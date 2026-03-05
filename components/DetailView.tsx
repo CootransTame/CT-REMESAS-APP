@@ -5,10 +5,11 @@ import {
   X, Printer, Clock, Image, AlertCircle, CheckCircle2, 
   Trash2, QrCode, Camera, Upload, ShieldCheck, 
   CreditCard, User, Info, MapPin, Phone, Mail, Fingerprint,
-  Package, Loader2, Truck
+  Package, Loader2, Truck, PenTool
 } from 'lucide-react';
 import { FAIL_REASONS } from '../constants';
 import { fetchDetalleRemesa } from '../services/shipmentService';
+import { subirFirmaRemitente, consultarEvidencias, Evidencia } from '../services/evidenciaService';
 import SignaturePad from './SignaturePad';
 import ReportView from './ReportView';
 import LabelView from './LabelView';
@@ -30,6 +31,9 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showLabel, setShowLabel] = useState(false);
+  const [showFirmaRemitente, setShowFirmaRemitente] = useState(false);
+  const [firmaRemitente, setFirmaRemitente] = useState<Evidencia | null>(null);
+  const [firmando, setFirmando] = useState(false);
 
   const [detalle, setDetalle] = useState<RemesaDetalle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,8 +55,31 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
         if (!cancelled) setLoading(false);
       });
 
+    // Cargar firma del remitente si ya existe
+    consultarEvidencias(session, numeroDocumento, 'firma-remitente')
+      .then((evs) => {
+        if (!cancelled && evs.length > 0) setFirmaRemitente(evs[0]);
+      })
+      .catch(() => {});
+
     return () => { cancelled = true; };
   }, [session, numeroDocumento]);
+
+  const handleGuardarFirma = async (dataUrl: string) => {
+    if (!detalle) return;
+    setFirmando(true);
+    try {
+      await subirFirmaRemitente(session, detalle.NumeroDocumento, dataUrl);
+      // Recargar la firma guardada
+      const evs = await consultarEvidencias(session, detalle.NumeroDocumento, 'firma-remitente');
+      if (evs.length > 0) setFirmaRemitente(evs[0]);
+    } catch (err: any) {
+      alert(err.message || 'Error al guardar la firma');
+    } finally {
+      setFirmando(false);
+      setShowFirmaRemitente(false);
+    }
+  };
 
   const canAnular = () => {
     if (!detalle) return false;
@@ -219,6 +246,31 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
               <span className="font-medium truncate">{detalle.EmailRemitente || '—'}</span>
             </div>
           </div>
+
+          {/* Firma del Remitente */}
+          {firmaRemitente ? (
+            <div className="mt-2 border border-green-200 bg-green-50 rounded-2xl p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <PenTool size={14} className="text-green-600" />
+                <span className="text-[10px] font-black text-green-700 uppercase tracking-widest">Firma del Remitente</span>
+              </div>
+              <img
+                src={firmaRemitente.urlFirmada || firmaRemitente.URL_Archivo}
+                alt="Firma remitente"
+                className="w-full h-20 object-contain bg-white rounded-xl border"
+              />
+              <p className="text-[9px] text-green-600 font-bold mt-1">
+                Firmado: {new Date(firmaRemitente.Fecha_Crea).toLocaleString('es-CO')}
+              </p>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowFirmaRemitente(true)}
+              className="mt-2 w-full flex items-center justify-center gap-2 py-3 bg-blue-50 border-2 border-dashed border-blue-200 rounded-2xl text-blue-700 font-bold text-xs active:scale-95 transition-transform"
+            >
+              <PenTool size={16} /> Firmar como Remitente
+            </button>
+          )}
         </div>
       </div>
 
@@ -350,6 +402,21 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
       >
         <Image className="text-blue-600 mb-2" size={28} />
         <span className="text-xs font-bold text-gray-700">Evidencias</span>
+      </button>
+
+      <button
+        onClick={() => setShowFirmaRemitente(true)}
+        className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-colors relative ${
+          firmaRemitente ? 'bg-green-50 border-green-200' : 'bg-white hover:bg-gray-50 active:bg-blue-50'
+        }`}
+      >
+        {firmaRemitente && (
+          <div className="absolute top-2 right-2 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+            <CheckCircle2 size={12} className="text-white" />
+          </div>
+        )}
+        <PenTool className={`${firmaRemitente ? 'text-green-600' : 'text-blue-600'} mb-2`} size={28} />
+        <span className="text-xs font-bold text-gray-700">{firmaRemitente ? 'Firmado' : 'Firma Rem.'}</span>
       </button>
 
       <button
@@ -507,7 +574,26 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
         {activeTab === 'tracking' && renderTracking()}
       </div>
 
-      {/* Signature Modal */}
+      {/* Firma Remitente */}
+      {showFirmaRemitente && (
+        <SignaturePad
+          title="Firma del Remitente"
+          onSave={handleGuardarFirma}
+          onCancel={() => setShowFirmaRemitente(false)}
+        />
+      )}
+
+      {/* Indicador de carga mientras se sube la firma */}
+      {firmando && (
+        <div className="fixed inset-0 z-[110] bg-black/70 flex items-center justify-center">
+          <div className="bg-white p-8 rounded-3xl flex flex-col items-center gap-3">
+            <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+            <p className="text-sm font-bold text-gray-700">Guardando firma…</p>
+          </div>
+        </div>
+      )}
+
+      {/* Signature Modal (Cumplido) */}
       {showSignature && (
         <SignaturePad
           title="Firma de Cumplimiento"
@@ -625,6 +711,7 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
     {showReport && (
       <ReportView
         detalle={detalle}
+        firmaRemitente={firmaRemitente}
         onClose={() => setShowReport(false)}
       />
     )}

@@ -1,14 +1,18 @@
 
 import React from 'react';
 import { RemesaDetalle } from '../types';
-import { X, Printer, Share2, Barcode } from 'lucide-react';
+import { X, Printer as PrinterIcon, Share2, Barcode } from 'lucide-react';
+import NativePrinter from '../services/printer';
+
+import { Evidencia } from '../services/evidenciaService';
 
 interface ReportViewProps {
   detalle: RemesaDetalle;
+  firmaRemitente?: Evidencia | null;
   onClose: () => void;
 }
 
-const ReportView: React.FC<ReportViewProps> = ({ detalle, onClose }) => {
+const ReportView: React.FC<ReportViewProps> = ({ detalle, firmaRemitente, onClose }) => {
   const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString('es-CO');
   const fmtMoney = (n: number | null | undefined) => `$${fmt(n)}`;
 
@@ -16,12 +20,11 @@ const ReportView: React.FC<ReportViewProps> = ({ detalle, onClose }) => {
     day: '2-digit', month: '2-digit', year: 'numeric'
   });
 
-  /* ─── Impresión en ventana nueva (compatible con térmicas POS) ─── */
-  const handlePrint = () => {
+  /* ─── Genera el HTML de la guía (compartido entre imprimir y compartir) ─── */
+  const buildGuiaHtml = () => {
     const comisionHtml = detalle.Comision > 0 ? `<tr><td>Comisión:</td><td style="text-align:right">${fmtMoney(detalle.Comision)}</td></tr>` : '';
     const reexpHtml = detalle.Reexpedicion > 0 ? `<tr><td>Reexpedición:</td><td style="text-align:right">${fmtMoney(detalle.Reexpedicion)}</td></tr>` : '';
-
-    const html = `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <title>Guía ${detalle.NumeroDocumento}</title>
 <style>
@@ -150,8 +153,8 @@ ${detalle.EmailDestinatario ? `<div class="field"><div class="fl">Correo</div><d
 
 <!-- FIRMAS -->
 <div style="font-size:11px;font-weight:900;margin-top:6px">Remitente:</div>
-<div class="firma-box"></div>
-<div style="font-size:11px;font-weight:700">C.C. _______________________</div>
+${firmaRemitente ? `<div style="text-align:center;margin:4px 0"><img src="${firmaRemitente.urlFirmada || firmaRemitente.URL_Archivo}" style="max-width:100%;height:50px;object-fit:contain" /><div style="font-size:8px;color:#666;margin-top:2px">Firmado: ${new Date(firmaRemitente.Fecha_Crea).toLocaleString('es-CO')}</div></div>` : '<div class="firma-box"></div>'}
+<div style="font-size:11px;font-weight:700">C.C. ${detalle.DocRemitente || '_______________________'}</div>
 
 <div style="font-size:11px;font-weight:900;margin-top:8px">Recibí Conforme:</div>
 <div class="firma-box"></div>
@@ -224,14 +227,32 @@ ${detalle.EmailDestinatario ? `<div class="field"><div class="fl">Correo</div><d
     }
   }
 })();
-window.onload=function(){setTimeout(function(){window.print();window.onafterprint=function(){window.close();}},100);}
 <\/script>
 </body></html>`;
+  };
 
-    const printWindow = window.open('', '_blank', 'width=350,height=600');
-    if (printWindow) {
-      printWindow.document.write(html);
-      printWindow.document.close();
+  /* ─── Impresión nativa Android via PrintManager ─── */
+  const handlePrint = async () => {
+    try {
+      const html = buildGuiaHtml();
+      await NativePrinter.print({ content: html, name: `Guía ${detalle.NumeroDocumento}` });
+    } catch {
+      // fallback: si no es Android nativo, intentar window.print
+      window.print();
+    }
+  };
+
+  /* ─── Compartir: texto formateado vía share sheet nativo ─── */
+  const handleShare = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `Guía ${detalle.NumeroDocumento} - Cootranstame`,
+          text: `GUÍA No. ${detalle.NumeroDocumento}\nFecha: ${fechaFormateada}\nDe: ${detalle.NombreRemitente} (${detalle.CiudadRemitente})\nPara: ${detalle.NombreDestinatario} (${detalle.CiudadDestinatario})\nTotal: ${fmtMoney(detalle.TotalFlete)}\nForma de pago: ${detalle.FormaPago || '—'}`,
+        });
+      }
+    } catch {
+      // Ignorar cancelación del usuario
     }
   };
 
@@ -455,11 +476,24 @@ window.onload=function(){setTimeout(function(){window.print();window.onafterprin
           <div className="grid grid-cols-1 border-b-2 border-black">
             <div className="p-6 border-b border-black min-h-[120px] flex flex-col justify-between">
               <p className="text-[9px] font-black uppercase">Remitente:</p>
-              <div className="w-full h-12 flex items-center justify-center opacity-10">
-                <span className="text-[10px] italic">[Espacio para firma manuscrita]</span>
-              </div>
+              {firmaRemitente ? (
+                <div className="flex flex-col items-center">
+                  <img
+                    src={firmaRemitente.urlFirmada || firmaRemitente.URL_Archivo}
+                    alt="Firma remitente"
+                    className="h-16 object-contain"
+                  />
+                  <p className="text-[8px] text-gray-500 font-bold mt-1">
+                    Firmado: {new Date(firmaRemitente.Fecha_Crea).toLocaleString('es-CO')}
+                  </p>
+                </div>
+              ) : (
+                <div className="w-full h-12 flex items-center justify-center opacity-10">
+                  <span className="text-[10px] italic">[Espacio para firma manuscrita]</span>
+                </div>
+              )}
               <div className="border-t border-black pt-1">
-                <span className="text-[10px] font-bold">C.C. _______________________</span>
+                <span className="text-[10px] font-bold">C.C. {detalle.DocRemitente || '_______________________'}</span>
               </div>
             </div>
             <div className="p-6 min-h-[120px] flex flex-col justify-between bg-gray-50/30">
@@ -511,15 +545,7 @@ window.onload=function(){setTimeout(function(){window.print();window.onafterprin
       <div className="p-6 bg-white border-t border-gray-100 flex flex-row gap-3 no-print rounded-t-[40px] shadow-[0_-15px_40px_rgba(0,0,0,0.08)]">
         <button 
           className="flex-1 py-5 bg-white text-blue-900 border-2 border-blue-50 rounded-[20px] font-bold flex items-center justify-center gap-2 active:scale-95 transition-all text-sm"
-          onClick={() => {
-            if (navigator.share) {
-              navigator.share({
-                title: `Reporte Guía ${detalle.NumeroDocumento}`,
-                text: `Detalles de la guía de envío ${detalle.NumeroDocumento}`,
-                url: window.location.href,
-              }).catch(() => {});
-            }
-          }}
+          onClick={handleShare}
         >
           <Share2 size={20} /> Compartir
         </button>
@@ -527,7 +553,7 @@ window.onload=function(){setTimeout(function(){window.print();window.onafterprin
           onClick={handlePrint}
           className="flex-1 py-5 bg-blue-900 text-white rounded-[24px] font-black shadow-2xl shadow-blue-200 flex items-center justify-center gap-2 active:scale-95 transition-all text-sm"
         >
-          <Printer size={20} /> Imprimir Guía
+          <PrinterIcon size={20} /> Imprimir Guía
         </button>
       </div>
     </div>
