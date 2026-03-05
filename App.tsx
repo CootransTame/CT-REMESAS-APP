@@ -555,12 +555,14 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {isWizardOpen && (
+      {isWizardOpen && session && (
         <Wizard 
+          session={session}
           onCancel={() => setIsWizardOpen(false)}
           onComplete={(data) => {
-            console.log('Shipment created:', data);
+            console.log('Remesa creada:', data);
             setIsWizardOpen(false);
+            loadShipments(session);
           }}
         />
       )}

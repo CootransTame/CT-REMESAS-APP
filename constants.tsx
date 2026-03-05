@@ -13,6 +13,17 @@ export const API_CONFIG = {
     GUIAS_LISTADO_EMPLEADO: '/empleado/guias/listado',
     GUIAS_DETALLE_EMPLEADO: '/empleado/guias/detalle',
     GUIAS_LISTADO_CLIENTE:  '/clientes/guias/listado',
+    // Diccionarios
+    CIUDADES:              '/diccionarios/ciudades',
+    FORMAS_PAGO:           '/diccionarios/formas-pago',
+    PRODUCTOS:             '/diccionarios/productos-transportados',
+    // Terceros
+    TERCEROS_BUSCAR:       '/terceros/buscar',
+    TERCEROS_SEDES:        '/terceros',
+    TERCEROS_CREAR:        '/terceros',
+    TERCEROS_TARIFAS:      '/terceros/tarifas',
+    // Crear remesa
+    CREAR_REMESA:          '/crear/remesa',
   }
 };
 
