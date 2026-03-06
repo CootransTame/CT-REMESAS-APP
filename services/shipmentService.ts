@@ -4,8 +4,8 @@ import { API_CONFIG } from '../constants';
 /** Convierte un string de estado del backend al enum ShipmentStatus */
 function mapEstado(estado: string | null): ShipmentStatus {
   if (!estado) return ShipmentStatus.OFICINA_ORIGEN;
-  const lower = estado.toLowerCase().trim();
-  const match = Object.values(ShipmentStatus).find(v => v === lower);
+  const upper = estado.toUpperCase().trim();
+  const match = Object.values(ShipmentStatus).find(v => v === upper);
   return match ?? ShipmentStatus.OFICINA_ORIGEN;
 }
 

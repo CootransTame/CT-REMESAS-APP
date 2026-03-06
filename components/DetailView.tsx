@@ -596,7 +596,7 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
         <SignaturePad
           title="Firma de Cumplimiento"
           onSave={() => {
-            onStatusChange(ShipmentStatus.CUMPLIDA);
+            onStatusChange(ShipmentStatus.ENTREGADA_CUMPLIDA);
             setShowSignature(false);
             onClose();
           }}
@@ -651,7 +651,7 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
                 <button
                   key={i}
                   onClick={() => {
-                    onStatusChange(ShipmentStatus.INTENTO_FALLIDO);
+                    onStatusChange(ShipmentStatus.DEVUELTA_OFICINA_DESTINO);
                     setShowFailedModal(false);
                     onClose();
                   }}

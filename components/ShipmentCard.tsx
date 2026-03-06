@@ -17,15 +17,17 @@ const getStatusColor = (status: ShipmentStatus) => {
       return 'bg-amber-100 text-amber-800 border-amber-200';
     case ShipmentStatus.OFICINA_ORIGEN: 
       return 'bg-indigo-100 text-indigo-800 border-indigo-200';
-    case ShipmentStatus.DESPACHADA: 
+    case ShipmentStatus.TRANSITO: 
       return 'bg-blue-100 text-blue-800 border-blue-200';
-    case ShipmentStatus.OFICINA_INTERMEDIA: 
+    case ShipmentStatus.RECIBIDA_OFICINA_INTERMEDIA: 
       return 'bg-purple-100 text-purple-800 border-purple-200';
-    case ShipmentStatus.OFICINA_DESTINO: 
+    case ShipmentStatus.RECIBIDA_OFICINA_DESTINO: 
       return 'bg-cyan-100 text-cyan-800 border-cyan-200';
-    case ShipmentStatus.CUMPLIDA: 
+    case ShipmentStatus.REPARTO_OFICINA_DESTINO: 
+      return 'bg-teal-100 text-teal-800 border-teal-200';
+    case ShipmentStatus.ENTREGADA_CUMPLIDA: 
       return 'bg-green-100 text-green-800 border-green-200';
-    case ShipmentStatus.INTENTO_FALLIDO: 
+    case ShipmentStatus.DEVUELTA_OFICINA_DESTINO: 
       return 'bg-rose-100 text-rose-800 border-rose-200';
     default: 
       return 'bg-gray-100 text-gray-800 border-gray-200';
