@@ -52,15 +52,18 @@ export interface SedeItem {
   Barrio: string | null;
 }
 
+export interface TarifaDetalle {
+  Valor_Flete: number;
+  Porcentaje_Seguro: number;
+  TipoTarifa: 'PESO' | 'UNIDAD';
+  RangoMin: number;
+  RangoMax: number;
+}
+
 export interface FormaPagoTarifa {
   Codigo: number;
   Nombre: string;
-  /** Tarifa fija mínima (para peso <= peso mínimo, TATC=201) */
-  ValorFleteBase: number;
-  /** Tarifa por kilo (TATC=200) */
-  ValorFletePorKilo: number;
-  /** Porcentaje de seguro sobre valor comercial, específico por ruta */
-  PorcentajeSeguro: number;
+  tarifas: TarifaDetalle[];
 }
 
 export interface TarifaInfo {
@@ -70,6 +73,9 @@ export interface TarifaInfo {
   minimoManejo: number;
   porcentajeSeguro: number;
   minimoSeguro: number;
+  porcentajeManejoMensajeria: number;
+  minimoSeguroMensajeria: number;
+  porcentajeSeguroMensajeria: number;
   formasPago: FormaPagoTarifa[];
 }
 
@@ -197,6 +203,28 @@ export async function fetchTarifas(
   let url = `${base()}${API_CONFIG.ENDPOINTS.TERCEROS_TARIFAS}?ciudadOrigen=${ciudadOrigen}&ciudadDestino=${ciudadDestino}`;
   if (codigoCliente) url += `&codigoCliente=${codigoCliente}`;
   const json = await authGet(url, session.token);
+  return json.data;
+}
+
+/** Calcular flete/seguro/total — réplica exacta del SP en el backend */
+export async function fetchCalculoTarifa(
+  session: UserSession,
+  params: {
+    ciudadOrigen: number; ciudadDestino: number;
+    peso: number; cantidad: number; valorComercial: number;
+    formaPago: number; codigoCliente?: number;
+  },
+): Promise<{ flete: number; seguro: number; total: number; tipoServicio: number }> {
+  const sp = new URLSearchParams({
+    ciudadOrigen: String(params.ciudadOrigen),
+    ciudadDestino: String(params.ciudadDestino),
+    peso: String(params.peso),
+    cantidad: String(params.cantidad),
+    valorComercial: String(params.valorComercial),
+    formaPago: String(params.formaPago),
+  });
+  if (params.codigoCliente) sp.set('codigoCliente', String(params.codigoCliente));
+  const json = await authGet(`${base()}/terceros/tarifas/calcular?${sp}`, session.token);
   return json.data;
 }
 

@@ -266,24 +266,57 @@ const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
     }
   }, [session, remitente, destinatario]);
 
-  // Recalcula flete/seguro usando la fórmula real del tarifario:
-  // flete = max(peso * valorPorKilo, valorBase)  — misma lógica que sp_Crear_Remesa_Api_Cliente
-  // seguro = max(valorComercial * porcentajeSeguro/100, minimoSeguro)
+  // Cálculo local instantáneo de flete/seguro/total (lógica del SP)
   useEffect(() => {
     if (!tarifaInfo || valorComercial <= 0 || peso <= 0) return;
     const fp = tarifaInfo.formasPago.find(f => f.Codigo === formaPagoCodigo) ?? tarifaInfo.formasPago[0];
-    if (!fp) return;
-    const flete = fp.ValorFletePorKilo > 0
-      ? Math.max(Math.round(peso * fp.ValorFletePorKilo), fp.ValorFleteBase)
-      : fp.ValorFleteBase;
-    // Igual que SP: si valorComercial < minimoSeguro, se usa minimoSeguro como base de calculo
-    const baseSeguro = valorComercial <= tarifaInfo.minimoSeguro ? tarifaInfo.minimoSeguro : valorComercial;
-    const seguro = Math.round(baseSeguro * fp.PorcentajeSeguro / 100);
+    if (!fp || !fp.tarifas) return;
+
+    const tipoServicio = peso > 5 ? 110 : 111;
+    let maxFlete = 0;
+
+    console.log('[CALC] formaPago:', fp.Codigo, 'tarifas:', fp.tarifas.length, 'peso:', peso, 'unidades:', unidades, 'valorComercial:', valorComercial);
+
+    for (const t of fp.tarifas) {
+      let calculado = 0;
+      if (tipoServicio === 111 && peso <= 5 && t.TipoTarifa === 'UNIDAD' && peso >= t.RangoMin && peso <= t.RangoMax) {
+        calculado = t.Valor_Flete * unidades;
+      } else if (tipoServicio === 110 && peso > 5 && peso <= 30 && t.TipoTarifa === 'UNIDAD' && peso >= t.RangoMin && peso <= t.RangoMax) {
+        calculado = t.Valor_Flete * unidades;
+      } else if (tipoServicio === 110 && peso > 30 && t.TipoTarifa === 'PESO' && peso >= t.RangoMin && peso <= t.RangoMax) {
+        calculado = t.Valor_Flete * peso;
+      } else if (tipoServicio === 110 && peso > 30 && t.TipoTarifa === 'UNIDAD' && t.RangoMin >= 5.1 && t.RangoMax <= 30) {
+        calculado = t.Valor_Flete * unidades;
+      }
+      if (calculado > 0) console.log('[CALC]  tarifa', t.TipoTarifa, t.RangoMin, '-', t.RangoMax, 'flete=', t.Valor_Flete, '→ calculado=', calculado);
+      if (calculado > maxFlete) maxFlete = calculado;
+    }
+
+    const flete = Math.round(maxFlete);
+    console.log('[CALC] maxFlete:', maxFlete, '→ flete:', flete);
+
+    // Seguro: replicar exactamente el SP → TOP 1 Porcentaje_Seguro > 0 (sin ORDER BY, sin filtro por tipo de servicio)
+    const pctSeguro = fp.tarifas.find(t => t.Porcentaje_Seguro > 0)?.Porcentaje_Seguro ?? 0;
+    // Minimo_Valor_Seguro como piso del valor base
+    const minimoSeguro = tipoServicio === 110 ? tarifaInfo.minimoSeguro : tarifaInfo.minimoSeguroMensajeria;
+    const baseSeguro = Math.max(valorComercial, minimoSeguro);
+
+    let seguro = 0;
+    if (pctSeguro > 0) {
+      seguro = Math.trunc(baseSeguro * pctSeguro / 100);
+    } else if (tipoServicio === 111 && tarifaInfo.porcentajeManejoMensajeria > 0) {
+      seguro = Math.trunc(baseSeguro * tarifaInfo.porcentajeManejoMensajeria / 100);
+    } else if (tipoServicio === 110 && tarifaInfo.porcentajeManejo > 0) {
+      seguro = Math.trunc(baseSeguro * tarifaInfo.porcentajeManejo / 100);
+    }
+
+    console.log('[CALC] pctSeguro:', pctSeguro, 'minimoSeguro:', minimoSeguro, 'baseSeguro:', baseSeguro, '→ seguro:', seguro, '→ TOTAL:', flete + seguro);
+
     setFleteSugerido(flete);
     setFletePactado(flete);
     setValorSeguro(seguro);
     setTotal(flete + seguro);
-  }, [valorComercial, tarifaInfo, peso, formaPagoCodigo]);
+  }, [valorComercial, tarifaInfo, peso, unidades, formaPagoCodigo]);
 
   const calcularTarifa = useCallback(async () => {
     if (!remitente.ciudadCodigo || !destinatario.ciudadCodigo) return;
@@ -682,9 +715,13 @@ const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Valor Comercial ($) *</label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400">$</span>
-                <input type="number"
-                  className="w-full p-4 pl-10 border rounded-2xl outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-medium focus:ring-2 focus:ring-blue-100"
-                  value={valorComercial || ''} onChange={e => setValorComercial(Number(e.target.value))} />
+                <input type="text" inputMode="numeric"
+                  className="w-full p-4 pl-10 border rounded-2xl outline-none font-medium focus:ring-2 focus:ring-blue-100"
+                  value={valorComercial ? valorComercial.toLocaleString('es-CO') : ''}
+                  onChange={e => {
+                    const raw = e.target.value.replace(/\D/g, '');
+                    setValorComercial(raw ? Number(raw) : 0);
+                  }} />
               </div>
             </div>
 
