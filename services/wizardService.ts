@@ -131,24 +131,71 @@ async function authPost(url: string, token: string, data: unknown) {
 
 const base = () => API_CONFIG.BASE_URL;
 
+/* ── Caché en memoria (por token) ──────────────────────────────────────── */
+
+interface _CatalogCache {
+  ciudades?: CiudadItem[];
+  formasPago?: FormaPagoItem[];
+  productos?: ProductoItem[];
+  // Promesas en vuelo para evitar doble-fetch concurrente
+  _pCiudades?: Promise<CiudadItem[]>;
+  _pFormasPago?: Promise<FormaPagoItem[]>;
+  _pProductos?: Promise<ProductoItem[]>;
+}
+
+const _cache: Record<string, _CatalogCache> = {};
+
+function _getCache(token: string): _CatalogCache {
+  if (!_cache[token]) _cache[token] = {};
+  return _cache[token];
+}
+
+/** Limpia el caché al cerrar sesión */
+export function clearCatalogCache(): void {
+  Object.keys(_cache).forEach(k => delete _cache[k]);
+}
+
+/** Pre-carga todos los catálogos en background al iniciar sesión */
+export function prefetchCatalogos(session: UserSession): void {
+  // Fire-and-forget: dispara las 3 llamadas sin bloquear nada
+  fetchCiudades(session).catch(() => {});
+  fetchFormasPago(session).catch(() => {});
+  fetchProductos(session).catch(() => {});
+}
+
 /* ── API calls ──────────────────────────────────────────────────────────── */
 
-/** Obtener todas las ciudades */
+/** Obtener todas las ciudades (con caché en memoria) */
 export async function fetchCiudades(session: UserSession): Promise<CiudadItem[]> {
-  const json = await authGet(`${base()}${API_CONFIG.ENDPOINTS.CIUDADES}`, session.token);
-  return json.data;
+  const c = _getCache(session.token);
+  if (c.ciudades) return c.ciudades;
+  if (!c._pCiudades) {
+    c._pCiudades = authGet(`${base()}${API_CONFIG.ENDPOINTS.CIUDADES}`, session.token)
+      .then(json => { c.ciudades = json.data; return c.ciudades!; });
+  }
+  return c._pCiudades;
 }
 
-/** Obtener formas de pago del catálogo general */
+/** Obtener formas de pago (con caché en memoria) */
 export async function fetchFormasPago(session: UserSession): Promise<FormaPagoItem[]> {
-  const json = await authGet(`${base()}${API_CONFIG.ENDPOINTS.FORMAS_PAGO}`, session.token);
-  return json.data;
+  const c = _getCache(session.token);
+  if (c.formasPago) return c.formasPago;
+  if (!c._pFormasPago) {
+    c._pFormasPago = authGet(`${base()}${API_CONFIG.ENDPOINTS.FORMAS_PAGO}`, session.token)
+      .then(json => { c.formasPago = json.data; return c.formasPago!; });
+  }
+  return c._pFormasPago;
 }
 
-/** Obtener productos transportados */
+/** Obtener productos transportados (con caché en memoria) */
 export async function fetchProductos(session: UserSession): Promise<ProductoItem[]> {
-  const json = await authGet(`${base()}${API_CONFIG.ENDPOINTS.PRODUCTOS}`, session.token);
-  return json.data;
+  const c = _getCache(session.token);
+  if (c.productos) return c.productos;
+  if (!c._pProductos) {
+    c._pProductos = authGet(`${base()}${API_CONFIG.ENDPOINTS.PRODUCTOS}`, session.token)
+      .then(json => { c.productos = json.data; return c.productos!; });
+  }
+  return c._pProductos;
 }
 
 /** Buscar tercero por número de documento */

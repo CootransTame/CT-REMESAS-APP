@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppStatus, UserSession, Shipment, ShipmentStatus } from './types';
 import { authService } from './services/authService';
 import { fetchRemesas, remesaToShipment, PaginatedResponse } from './services/shipmentService';
+import { prefetchCatalogos, clearCatalogCache } from './services/wizardService';
 import { COLORS, API_CONFIG } from './constants';
 import ShipmentCard from './components/ShipmentCard';
 import Wizard from './components/Wizard';
@@ -102,6 +103,7 @@ const App: React.FC = () => {
   }, [session, loadingMore, currentPage, totalPages, searchTerm, fechaInicio, fechaFin, filterEstado]);
 
   const handleLogout = useCallback(() => {
+    clearCatalogCache();
     authService.logout();
     setSession(null);
     setUsername('');
@@ -154,6 +156,8 @@ const App: React.FC = () => {
       const newSession = await authService.login(username, password);
       setSession(newSession);
       setStatus(AppStatus.SUCCESS);
+      // Pre-cargar catálogos en background para que el wizard abra instantáneo
+      prefetchCatalogos(newSession);
     } catch (err: any) {
       setError(err.message);
       setStatus(AppStatus.ERROR);
