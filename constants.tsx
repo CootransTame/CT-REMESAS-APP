@@ -24,6 +24,8 @@ export const API_CONFIG = {
     TERCEROS_TARIFAS:      '/terceros/tarifas',
     // Crear remesa
     CREAR_REMESA:          '/crear/remesa',
+    // Perfil empleado
+    EMPLEADO_PERFIL:       '/empleado/perfil',
   }
 };
 

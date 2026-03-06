@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserSession } from '../types';
-import { ChevronLeft, User, Phone, Briefcase, ShieldCheck, Mail } from 'lucide-react';
+import { ChevronLeft, User, Phone, Briefcase, ShieldCheck, Mail, Loader2 } from 'lucide-react';
+import { fetchPerfilEmpleado, PerfilEmpleado } from '../services/profileService';
 
 interface ProfileViewProps {
   session: UserSession;
@@ -9,34 +10,36 @@ interface ProfileViewProps {
 }
 
 const ProfileView: React.FC<ProfileViewProps> = ({ session, onClose }) => {
-  // Lógica para derivar nombre y apellido del login
-  const nameParts = session.username.trim().split(/\s+/);
-  const derivedFirstName = nameParts[0] || session.username;
-  const derivedLastName = nameParts.slice(1).join(' ') || 'Gomez Aristizabal';
+  const [perfil, setPerfil] = useState<PerfilEmpleado | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Mock data for the profile using dynamic login data
-  const profileData = {
-    nombre: derivedFirstName,
-    apellido: derivedLastName,
-    identificacion: "1.020.340.567",
-    telefono: "310 987 6543",
-    oficina: "Medellín Central - Punto Sur",
-    email: `${derivedFirstName.toLowerCase()}@ctremesas.com.co`,
-    cargo: "Agente de Logística en Campo",
-    rol: "Administrador de Operaciones"
+  useEffect(() => {
+    fetchPerfilEmpleado(session)
+      .then(p => setPerfil(p))
+      .catch(err => setError(err.message || 'Error al cargar perfil'))
+      .finally(() => setLoading(false));
+  }, [session]);
+
+  // Nombre a mostrar en el encabezado
+  const nombreCompleto = perfil
+    ? [perfil.razonSocial || perfil.nombre, perfil.apellido1, perfil.apellido2].filter(Boolean).join(' ')
+    : session.user.name || session.username;
+
+  const Field = ({ icon: Icon, label, value }: { icon: any; label: string; value: string | null | undefined }) => {
+    if (!value) return null;
+    return (
+      <div className="flex items-center gap-5 p-5 bg-white rounded-3xl border border-gray-50 shadow-sm">
+        <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center flex-shrink-0">
+          <Icon size={24} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">{label}</p>
+          <p className="text-base font-bold text-blue-900 truncate">{value}</p>
+        </div>
+      </div>
+    );
   };
-
-  const Field = ({ icon: Icon, label, value }: { icon: any, label: string, value: string }) => (
-    <div className="flex items-center gap-5 p-5 bg-white rounded-3xl border border-gray-50 shadow-sm">
-      <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center flex-shrink-0">
-        <Icon size={24} />
-      </div>
-      <div>
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">{label}</p>
-        <p className="text-base font-bold text-blue-900">{value}</p>
-      </div>
-    </div>
-  );
 
   return (
     <div className="fixed inset-0 bg-[#f8fafc] z-50 flex flex-col animate-in slide-in-from-right duration-300">
@@ -60,23 +63,36 @@ const ProfileView: React.FC<ProfileViewProps> = ({ session, onClose }) => {
               <ShieldCheck size={20} />
             </div>
           </div>
-          <h3 className="mt-6 text-2xl font-black text-blue-900">{profileData.nombre} {profileData.apellido !== 'Gomez Aristizabal' ? profileData.apellido : ''}</h3>
-          <p className="text-sm font-bold text-blue-400 uppercase tracking-[0.2em]">{profileData.cargo}</p>
+          <h3 className="mt-6 text-2xl font-black text-blue-900 text-center">{nombreCompleto}</h3>
+          <p className="text-sm font-bold text-blue-400 uppercase tracking-[0.2em]">{session.username}</p>
         </div>
 
-        {/* Data Cards */}
-        <div className="space-y-4 max-w-md mx-auto">
-          <Field icon={User} label="Nombre" value={profileData.nombre} />
-          <Field icon={User} label="Apellido" value={profileData.apellido} />
-          <Field icon={IdentificationCard} label="Identificación" value={profileData.identificacion} />
-          <Field icon={Phone} label="Teléfono" value={profileData.telefono} />
-          <Field icon={Briefcase} label="Oficina Asignada" value={profileData.oficina} />
-        </div>
+        {/* Loading / Error / Data */}
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 size={36} className="animate-spin text-blue-400" />
+          </div>
+        ) : error ? (
+          <div className="text-center text-red-500 text-sm font-semibold py-8">{error}</div>
+        ) : (
+          <div className="space-y-4 max-w-md mx-auto">
+            {perfil?.nombre && (
+              <Field icon={User} label="Nombre" value={[perfil.nombre, perfil.apellido1, perfil.apellido2].filter(Boolean).join(' ') || perfil.razonSocial} />
+            )}
+            {perfil?.razonSocial && !perfil?.nombre && (
+              <Field icon={User} label="Razón Social" value={perfil.razonSocial} />
+            )}
+            <Field icon={IdentificationCard} label="Identificación" value={perfil?.identificacion} />
+            <Field icon={Phone} label="Teléfono" value={perfil?.celulares || perfil?.telefonos} />
+            <Field icon={Mail} label="Correo" value={perfil?.email} />
+            <Field icon={Briefcase} label="Oficina Asignada" value={perfil?.oficinaNombre} />
+          </div>
+        )}
 
         {/* Footer Info */}
         <div className="text-center pt-8">
-          <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-2">Versión de App 2.4.0</p>
-          <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest italic">CT REMESAS © 2024</p>
+          <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-2">Versión de App 1.0.0</p>
+          <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest italic">CT REMESAS © 2025</p>
         </div>
       </div>
     </div>
