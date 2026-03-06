@@ -242,14 +242,17 @@ const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
     const person = tipo === 'remitente' ? remitente : destinatario;
     const setPerson = tipo === 'remitente' ? setRemitente : setDestinatario;
     const setNotFound = tipo === 'remitente' ? setRemitenteNotFound : setDestinatarioNotFound;
-    if (!person.identificacion || !person.nombre || !person.ciudadCodigo) return;
+    const esNit = person.tipoDocumentoCodigo === 102;
+    if (!person.identificacion || !(esNit ? person.razonSocial : person.nombre) || !person.ciudadCodigo) return;
     try {
       const created = await crearTercero(session, {
+        cataTintCodigo: esNit ? 502 : 501,
         cataTiidCodigo: person.tipoDocumentoCodigo ?? 101,
         numeroIdentificacion: person.identificacion,
-        nombre: person.nombre,
-        apellido1: person.apellido1,
-        apellido2: person.apellido2,
+        razonSocial: esNit ? person.razonSocial : undefined,
+        nombre: esNit ? undefined : person.nombre,
+        apellido1: esNit ? undefined : person.apellido1,
+        apellido2: esNit ? undefined : person.apellido2,
         ciudCodigo: person.ciudadCodigo,
         direccion: person.direccion || undefined,
         telefonos: person.telefono || undefined,
@@ -577,12 +580,17 @@ const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <InputField label="Nombre *" value={person.nombre} disabled={person.encontrado}
-                onChange={v => setPerson(prev => ({ ...prev, nombre: v }))} placeholder="Nombre" />
-              <InputField label="Apellido *" value={person.apellido1} disabled={person.encontrado}
-                onChange={v => setPerson(prev => ({ ...prev, apellido1: v }))} placeholder="Apellido" />
-            </div>
+            {(person.tipoDocumentoCodigo ?? 101) === 102 ? (
+              <InputField label="Razón Social *" value={person.razonSocial} disabled={person.encontrado}
+                onChange={v => setPerson(prev => ({ ...prev, razonSocial: v }))} placeholder="Razón Social" />
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <InputField label="Nombre *" value={person.nombre} disabled={person.encontrado}
+                  onChange={v => setPerson(prev => ({ ...prev, nombre: v }))} placeholder="Nombre" />
+                <InputField label="Apellido *" value={person.apellido1} disabled={person.encontrado}
+                  onChange={v => setPerson(prev => ({ ...prev, apellido1: v }))} placeholder="Apellido" />
+              </div>
+            )}
 
             <div className="space-y-1 relative" ref={refDrop}>
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Ciudad *</label>
@@ -627,7 +635,7 @@ const Wizard: React.FC<WizardProps> = ({ session, onComplete, onCancel }) => {
             <InputField label="Email" value={person.email} type="email"
               onChange={v => setPerson(prev => ({ ...prev, email: v }))} placeholder="correo@email.com" />
 
-            {notFound && !person.tercCodigo && person.nombre && person.ciudadCodigo && (
+            {notFound && !person.tercCodigo && ((person.tipoDocumentoCodigo === 102 ? person.razonSocial : person.nombre)) && person.ciudadCodigo && (
               <button onClick={() => handleCrearTercero(tipo)}
                 className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all">
                 <Plus size={18} /> Crear {tipo === 'remitente' ? 'Remitente' : 'Destinatario'} en el Sistema

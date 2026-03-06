@@ -204,10 +204,12 @@ export async function fetchTarifas(
 export async function crearTercero(
   session: UserSession,
   data: {
+    cataTintCodigo?: number;
     cataTiidCodigo?: number;
     numeroIdentificacion: string;
-    nombre: string;
-    apellido1: string;
+    razonSocial?: string;
+    nombre?: string;
+    apellido1?: string;
     apellido2?: string;
     ciudCodigo: number;
     direccion?: string;

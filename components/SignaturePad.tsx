@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 
 interface SignaturePadProps {
   onSave: (dataUrl: string) => void;
@@ -9,7 +9,7 @@ interface SignaturePadProps {
 
 const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel, title }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const isDrawingRef = useRef(false);
 
   // Función para inicializar o redimensionar el canvas
   const initCanvas = useCallback(() => {
@@ -23,15 +23,17 @@ const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel, title }) 
     const ratio = window.devicePixelRatio || 1;
 
     // Solo actualizar si las dimensiones han cambiado o son 0
-    if (canvas.width !== rect.width * ratio || canvas.height !== rect.height * ratio) {
-      canvas.width = rect.width * ratio;
-      canvas.height = rect.height * ratio;
+    const w = Math.round(rect.width * ratio);
+    const h = Math.round(rect.height * ratio);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
       ctx.scale(ratio, ratio);
       
       // Resetear estilos después de cambiar dimensiones (el canvas se limpia al redimensionar)
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 5;
       ctx.strokeStyle = '#000000';
     }
   }, []);
@@ -52,25 +54,68 @@ const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel, title }) 
     };
   }, [initCanvas]);
 
-  const getPos = (e: React.MouseEvent | React.TouchEvent) => {
+  // Registrar touch listeners nativos con { passive: false } para evitar que el navegador
+  // cancele los eventos touch después del primer punto (problema en Android WebView).
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const getPos = (e: TouchEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      isDrawingRef.current = true;
+      const { x, y } = getPos(e);
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      if (!isDrawingRef.current) return;
+      const { x, y } = getPos(e);
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      isDrawingRef.current = false;
+    };
+
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+    return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [initCanvas]);
+
+  const getPos = (e: React.MouseEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    
     return {
-      x: clientX - rect.left,
-      y: clientY - rect.top
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
     };
   };
 
-  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-    // Asegurar que el canvas esté inicializado antes de empezar
-    initCanvas();
-    
-    setIsDrawing(true);
+  const startDrawing = (e: React.MouseEvent) => {
+    isDrawingRef.current = true;
     const { x, y } = getPos(e);
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx) {
@@ -79,13 +124,8 @@ const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel, title }) 
     }
   };
 
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing) return;
-    
-    // Evitar scroll mientras se firma
-    if ('touches' in e) {
-      e.preventDefault();
-    }
+  const draw = (e: React.MouseEvent) => {
+    if (!isDrawingRef.current) return;
 
     const { x, y } = getPos(e);
     const ctx = canvasRef.current?.getContext('2d');
@@ -96,7 +136,7 @@ const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel, title }) 
   };
 
   const endDrawing = () => {
-    setIsDrawing(false);
+    isDrawingRef.current = false;
   };
 
   const clear = () => {
@@ -107,7 +147,7 @@ const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel, title }) 
       // Re-inicializar estilos ya que clearRect a veces puede resetear el estado en algunos navegadores
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 5;
       ctx.strokeStyle = '#000000';
     }
   };
@@ -135,9 +175,6 @@ const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel, title }) 
           onMouseMove={draw}
           onMouseUp={endDrawing}
           onMouseLeave={endDrawing}
-          onTouchStart={startDrawing}
-          onTouchMove={draw}
-          onTouchEnd={endDrawing}
         />
       </div>
 

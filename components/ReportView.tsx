@@ -12,11 +12,14 @@ interface ReportViewProps {
   onClose: () => void;
 }
 
+/** Quita sufijo 'Z' de fechas del servidor para evitar doble resta UTC-5 */
+const parseDateCO = (d: string) => new Date(typeof d === 'string' ? d.replace(/Z$/i, '') : d);
+
 const ReportView: React.FC<ReportViewProps> = ({ detalle, firmaRemitente, onClose }) => {
   const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString('es-CO');
   const fmtMoney = (n: number | null | undefined) => `$${fmt(n)}`;
 
-  const fechaFormateada = new Date(detalle.Fecha).toLocaleDateString('es-CO', {
+  const fechaFormateada = parseDateCO(detalle.Fecha).toLocaleDateString('es-CO', {
     day: '2-digit', month: '2-digit', year: 'numeric'
   });
 
@@ -153,7 +156,7 @@ ${detalle.EmailDestinatario ? `<div class="field"><div class="fl">Correo</div><d
 
 <!-- FIRMAS -->
 <div style="font-size:11px;font-weight:900;margin-top:6px">Remitente:</div>
-${firmaRemitente ? `<div style="text-align:center;margin:4px 0"><img src="${firmaRemitente.urlFirmada || firmaRemitente.URL_Archivo}" style="max-width:100%;height:50px;object-fit:contain" /><div style="font-size:8px;color:#666;margin-top:2px">Firmado: ${new Date(firmaRemitente.Fecha_Crea).toLocaleString('es-CO')}</div></div>` : '<div class="firma-box"></div>'}
+${firmaRemitente ? `<div style="text-align:center;margin:4px 0"><img src="${firmaRemitente.urlFirmada || firmaRemitente.URL_Archivo}" style="max-width:100%;height:80px;object-fit:contain" /><div style="font-size:8px;color:#666;margin-top:2px">Firmado: ${parseDateCO(firmaRemitente.Fecha_Crea).toLocaleString('es-CO')}</div></div>` : '<div class="firma-box"></div>'}
 <div style="font-size:11px;font-weight:700">C.C. ${detalle.DocRemitente || '_______________________'}</div>
 
 <div style="font-size:11px;font-weight:900;margin-top:8px">Recibí Conforme:</div>
@@ -481,10 +484,10 @@ ${firmaRemitente ? `<div style="text-align:center;margin:4px 0"><img src="${firm
                   <img
                     src={firmaRemitente.urlFirmada || firmaRemitente.URL_Archivo}
                     alt="Firma remitente"
-                    className="h-16 object-contain"
+                    className="h-24 w-full object-contain"
                   />
                   <p className="text-[8px] text-gray-500 font-bold mt-1">
-                    Firmado: {new Date(firmaRemitente.Fecha_Crea).toLocaleString('es-CO')}
+                    Firmado: {parseDateCO(firmaRemitente.Fecha_Crea).toLocaleString('es-CO')}
                   </p>
                 </div>
               ) : (

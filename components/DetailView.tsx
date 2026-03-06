@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { RemesaDetalle, EstadoRemesa, ShipmentStatus, UserSession } from '../types';
 import { 
-  X, Printer, Clock, Image, AlertCircle, CheckCircle2, 
+  X, Printer, Clock, Image, AlertCircle, CheckCircle2, Check,
   Trash2, QrCode, Camera, Upload, ShieldCheck, 
   CreditCard, User, Info, MapPin, Phone, Mail, Fingerprint,
   Package, Loader2, Truck, PenTool
@@ -13,6 +13,9 @@ import { subirFirmaRemitente, consultarEvidencias, Evidencia } from '../services
 import SignaturePad from './SignaturePad';
 import ReportView from './ReportView';
 import LabelView from './LabelView';
+
+/** Quita sufijo 'Z' de fechas del servidor para evitar doble resta UTC-5 */
+const parseDateCO = (d: string) => new Date(typeof d === 'string' ? d.replace(/Z$/i, '') : d);
 
 interface DetailViewProps {
   /** Numero de documento de la remesa a mostrar */
@@ -83,7 +86,7 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
 
   const canAnular = () => {
     if (!detalle) return false;
-    const diff = Date.now() - new Date(detalle.Fecha).getTime();
+    const diff = Date.now() - parseDateCO(detalle.Fecha).getTime();
     return diff <= 20 * 60 * 1000;
   };
 
@@ -177,7 +180,7 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
           <div>
             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Fecha</p>
             <p className="text-xs font-bold text-gray-700">
-              {new Date(detalle.Fecha).toLocaleDateString('es-CO')}
+              {parseDateCO(detalle.Fecha).toLocaleDateString('es-CO')}
             </p>
           </div>
         </div>
@@ -249,19 +252,14 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
 
           {/* Firma del Remitente */}
           {firmaRemitente ? (
-            <div className="mt-2 border border-green-200 bg-green-50 rounded-2xl p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <PenTool size={14} className="text-green-600" />
-                <span className="text-[10px] font-black text-green-700 uppercase tracking-widest">Firma del Remitente</span>
+            <div className="mt-2 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+              <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                <Check size={12} className="text-white" />
               </div>
-              <img
-                src={firmaRemitente.urlFirmada || firmaRemitente.URL_Archivo}
-                alt="Firma remitente"
-                className="w-full h-20 object-contain bg-white rounded-xl border"
-              />
-              <p className="text-[9px] text-green-600 font-bold mt-1">
-                Firmado: {new Date(firmaRemitente.Fecha_Crea).toLocaleString('es-CO')}
-              </p>
+              <span className="text-xs font-bold text-green-700">Firmado</span>
+              <span className="text-[9px] text-green-500 ml-auto">
+                {parseDateCO(firmaRemitente.Fecha_Crea).toLocaleString('es-CO')}
+              </span>
             </div>
           ) : (
             <button
@@ -482,7 +480,7 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
               <div key={i} className="relative">
                 <div className={`absolute -left-[26px] top-1 w-4 h-4 ${dotColor} rounded-full border-4 border-white shadow-sm`} />
                 <p className="text-xs text-gray-400 font-bold">
-                  {new Date(e.FechaRegistro).toLocaleString('es-CO')}
+                  {parseDateCO(e.FechaRegistro).toLocaleString('es-CO')}
                 </p>
                 <p className="font-bold text-gray-700">{e.Estado}</p>
                 <div className="text-xs text-gray-500 mt-1 space-y-0.5">

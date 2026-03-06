@@ -3,6 +3,9 @@ import React from 'react';
 import { Shipment, ShipmentStatus } from '../types';
 import { MapPin, Box, ChevronRight, Truck } from 'lucide-react';
 
+/** Quita sufijo 'Z' de fechas del servidor para evitar doble resta UTC-5 */
+const parseDateCO = (d: string) => new Date(typeof d === 'string' ? d.replace(/Z$/i, '') : d);
+
 interface ShipmentCardProps {
   shipment: Shipment;
   onClick: () => void;
@@ -38,7 +41,7 @@ const ShipmentCard: React.FC<ShipmentCardProps> = ({ shipment, onClick }) => {
       <div className="flex justify-between items-start mb-3">
         <div>
           <h3 className="text-lg font-bold text-blue-900 group-hover:text-blue-700 transition-colors">{shipment.id}</h3>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">{new Date(shipment.createdAt).toLocaleDateString()} • {new Date(shipment.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">{parseDateCO(shipment.createdAt).toLocaleDateString('es-CO')} • {parseDateCO(shipment.createdAt).toLocaleTimeString('es-CO', {hour: '2-digit', minute:'2-digit'})}</p>
         </div>
         <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase border ${getStatusColor(shipment.status)}`}>
           {shipment.status}
