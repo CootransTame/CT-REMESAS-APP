@@ -244,7 +244,7 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
               <Phone size={14} className="text-green-500 shrink-0" />
               <span className="font-medium">{detalle.TelefonoRemitente || detalle.CelularRemitente || '—'}</span>
             </div>
-            <div className="flex-1 flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-3 rounded-2xl">
+            <div className="flex-1 flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-3 rounded-2xl min-w-0">
               <Mail size={14} className="text-orange-500 shrink-0" />
               <span className="font-medium truncate">{detalle.EmailRemitente || '—'}</span>
             </div>
@@ -301,7 +301,7 @@ const DetailView: React.FC<DetailViewProps> = ({ numeroDocumento, session, onClo
               <Phone size={14} className="text-green-500 shrink-0" />
               <span className="font-medium">{detalle.TelefonoDestinatario || detalle.CelularDestinatario || '—'}</span>
             </div>
-            <div className="flex-1 flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-3 rounded-2xl">
+            <div className="flex-1 flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-3 rounded-2xl min-w-0">
               <Mail size={14} className="text-orange-500 shrink-0" />
               <span className="font-medium truncate">{detalle.EmailDestinatario || '—'}</span>
             </div>
